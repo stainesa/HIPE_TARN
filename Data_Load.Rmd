@@ -1,9 +1,11 @@
 ---
 title: "Data load"
-author: "Anthony Staines"
-date: "28/01/2021"
-output: html_document
-editor_options: 
+author: "Anthony Staines & Anne O\\'Farrell"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+editor_options:
   chunk_output_type: console
 ---
 
@@ -28,7 +30,8 @@ D2016 <- readxl::read_excel('data/2016 head injuries.xls')
 D2017 <- readxl::read_excel('data/2017 head injuries.xls')
 D2018 <- readxl::read_excel('data/2018 head injuries.xls')
 D2019 <- readxl::read_excel('data/2019 head injuries.xls')
-#D2020 <- readxl::read_excel('data/2020 head injuries.xls')
+D2020 <- readxl::read_excel('data/2020_part head injuries.xls') # Up to October
+
 names(D2013)
 names(D2019)
 
@@ -39,16 +42,20 @@ vtable::vt(D2016)
 vtable::vt(D2017)
 vtable::vt(D2018)
 vtable::vt(D2019)
+vtable::vt(D2020)
 
 
 
 
-TBI <- D2019 %>% rbind(D2018) %>% rbind(D2017) %>% rbind(D2016) %>% rbind(D2015) %>% rbind(D2014) %>% rbind(D2013)
-rm(D2013,D2014,D2015,D2016,D2017,D2018,D2019)
+TBI <- D2020 %>% rbind(D2019) %>% rbind(D2018) %>% rbind(D2017) %>% rbind(D2016) %>% rbind(D2015) %>% rbind(D2014) %>% rbind(D2013)
+nrow(TBI)
+nrow(distinct(TBI))
+TBI <- TBI %>% distinct() #Some dates overlap 2019 and part 2020
+rm(D2013,D2014,D2015,D2016,D2017,D2018,D2019,D2020)
 
 ```
 
-# 2019
+# Data
  Fix the variable names
 ```{r FixNames, echo=FALSE}
 
@@ -96,11 +103,17 @@ rm(TBIt, COLS, NAMES)
 #Correctly ordered age groups
 TBI <- TBI %>%
   mutate(AgeGrp = as_factor(Age_by_5_year)) %>%
-  mutate(AgeGrp = fct_reorder(AgeGrp, Age_by_1_year))# %>%
-#  mutate(AgeGrp = fct_relevel(AgeGrp, "5-9", after=1)) %>%
-#  mutate(AgeGrp = fct_relevel(AgeGrp, "100-104", after=Inf))
+  mutate(AgeGrp = fct_reorder(AgeGrp, Age_by_1_year))#  #order by median age
+#  mutate(AgeGrp = fct_relevel(AgeGrp, "5-9", after=1)) # 
+#  mutate(AgeGrp = fct_relevel(AgeGrp, "100-104", after=Inf)) #
+
 TBI %>% select(AgeGrp) %>% group_by(AgeGrp) %>% summarise(N = n())
 
+#UniqueID
+
+TBI$ID = 1:nrow(TBI)
+
+TBI <- TBI %>% select(ID,E_MRN:AgeGrp)
 ```
 
 # Basic tables
@@ -187,13 +200,99 @@ Daily_Admissions <- TBI %>%
   summarise(N = n()) %>%
   mutate(Day_of_week = wday(Admission_date,
                             label = TRUE)) %>%
-  mutate(Weekend = ifelse((Day_of_week %in% c('Sat','Sun')),1,0))
+  mutate(Weekend = ifelse((Day_of_week %in% c('Sat','Sun')), TRUE, FALSE))
   
 str(Daily_Admissions)
 
 ggplot(Daily_Admissions, aes(x=Admission_date, y=N)) +
   geom_point(aes(colour=Weekend)) +
-  geom_smooth()  +
-  geom_line(alpha=0.2,colour='pink')
+  geom_smooth( method = "gam", formula = y ~ s(x, k=20, bs = "cs"))  +
+  geom_line(alpha=0.2,colour='blue') +
+  scale_colour_manual(values=c('lightblue','yellow')) +
+  scale_x_date(date_minor_breaks='1 month', date_breaks = '3 months', date_labels = '%b-%y', limits = c(as_date('2013-01-01'),NA)  )
 
+```
+
+Something very different in 2018
+Small gap in late 2018 - only given up to December 1st
+Sharp dip in March 2020 - COVID1
+
+This is all head injuires.
+
+# Dictionary of codes
+
+This is set of all the ICD10 codes used in the data which were associated with names. Note that there are more codes (up to 30) than names( up to 19) in the dataset.
+
+```{r}
+Dictionary <- TBI %>%
+  select(ID, Dx_1_ICD_code:Dx_30_ICD_code, Dx_1_ICD_name:Dx_19_ICD_name) %>%  #All diagnoses
+  pivot_longer(-ID,
+               names_to=c("Dx",".value"),
+               names_pattern="(Dx_\\d+)_(.*)") %>% # Generate one row per diagnosis
+  filter(!is.na(ICD_code)) %>% # Lose blank codes
+  filter(!is.na(ICD_name)) %>% # Lose blank codes
+  select(-ID,-Dx) %>%
+  group_by(ICD_code,ICD_name) %>%
+  summarise(N=n()) %>%
+  arrange(ICD_code) %>% # Put in Code order
+  ungroup()
+
+Dictionary
+```
+
+# Working data set
+
+Advice?
+Suggest, exclude all electives.
+Require SO6 as Dx_1 or SO6 + Vcode
+
+```{r}
+
+# Codes used and the number of the associated diagnosis
+Codes_used_by_Dx <- TBI %>%
+  select(ID,Dx_1_ICD_code:Dx_30_ICD_code) %>%  #All diagnoses
+  pivot_longer(-ID,
+               names_to=c("Dx","Type"),
+               names_pattern="(Dx_\\d+)_(.*)",
+               values_to="Code") %>% # Generate one row per diagnosis
+  select(-Type) %>% # This just says ICD_code
+  filter(!is.na(Code)) %>% # Lose blank codes
+  left_join(Dictionary, by = c('Code' = 'ICD_code')) %>%
+  group_by(Dx,Code,ICD_name) %>% # Group by diagnosis, and code
+  summarize(N=n()) %>% # Count every combination of diagnosis and code
+  arrange(desc(N)) # Put from most common to least common
+
+Codes_used_by_Dx
+
+# Codes used for all diagnoses
+Codes_used_all_Dx <- TBI %>%
+  select(ID,Dx_1_ICD_code:Dx_30_ICD_code) %>%  #All diagnoses
+  pivot_longer(-ID,
+               names_to=c("Dx","Type"),
+               names_pattern="(Dx_\\d+)_(.*)",
+               values_to="Code") %>% # Generate one row per diagnosis
+  select(-Type) %>% # This just says ICD_code
+  filter(!is.na(Code)) %>% # Lose blank codes
+  left_join(Dictionary, by = c('Code' = 'ICD_code')) %>%
+  group_by(Code,ICD_name) %>% # Group by code
+  summarize(N=n()) %>% # Count every code used for any diagnosis
+  arrange(desc(N)) # Put from most common to least common
+
+Codes_used_all_Dx
+
+#Codes used for diagnosis 1 only
+Codes_used_Dx_1 <- TBI %>%
+  select(ID,Dx_1_ICD_code) %>%  #Principal diagnosis
+  pivot_longer(-ID,
+               names_to=c("Dx","Type"),
+               names_pattern="(Dx_\\d+)_(.*)",
+               values_to="Code") %>% # Generate one row per diagnosis
+  select(-Type) %>% # This just says ICD_code
+  filter(!is.na(Code)) %>% # Lose blank codes
+  left_join(Dictionary, by = c('Code' = 'ICD_code')) %>%
+  group_by(Code, ICD_name) %>% # Group by code
+  summarize(N=n()) %>% # Count every code for principal diagnosis
+  arrange(desc(N)) # Put from most common to least common
+
+Codes_used_Dx_1
 ```
