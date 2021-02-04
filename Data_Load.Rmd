@@ -176,6 +176,8 @@ Group.db %>%
   kbl() %>%
   kable_classic(full_width = F, html_font = "Cambria")
 
+rm(Age, Destination, Gender, Group.db, Source, Type)
+
 ```
 
 # Basic plots
@@ -198,6 +200,8 @@ ggplot(Daily_Admissions, aes(x=Admission_date, y=N)) +
   scale_colour_manual(values=c('lightblue','yellow')) +
   scale_x_date(date_minor_breaks='1 month', date_breaks = '3 months', date_labels = '%b-%y', limits = c(as_date('2013-01-01'),NA)  )
 
+
+rm(Daily_Admissions)
 ```
 
 Something very different in 2018
@@ -282,6 +286,8 @@ Codes_used_Dx_1 <- TBI %>%
   arrange(desc(N)) # Put from most common to least common
 
 Codes_used_Dx_1
+
+rm(Codes_used_all_Dx, Codes_used_by_Dx, Codes_used_Dx_1)
 ```
 
 
@@ -332,12 +338,317 @@ CODES <- CODES %>%
                            'F0402' = '< 2w ',
                            'F0403' = '> 2w ',
                            .default = NA_character_
-                           )) 
-TBIl2 <- TBIl %>%
+                           )) %>%
+  select(-N) # Drop the count
+
+TBIl <- TBIl %>%
   left_join(CODES, by = "ICD_code")
+
+rm(Codes)
 ```
 
-Working file
+E-codes
+External cause codes (E-Codes)
+
+Transport accidents   V01-V99
+Falls                 W00-W19
+Assaults              X85-Y09
+Other accidents       W20-W64, X60-X84
+
+These have to be *manually* checked every time the data change to find the first and last (e.g. W00, W000, W009 etc...)
+
+Checked `r Sys.Date()`  Anthony Staines 
+
+```{r}
+
+Dictionary <- Dictionary %>%
+  arrange(ICD_code) %>%
+  mutate(Row = row_number())
+
+#V01 - V99 inclusive
+Transport <- Dictionary %>%
+  filter(str_starts(ICD_code, 'V' )) %>%
+  mutate(Transport = TRUE) %>%
+  select(ICD_code, ICD_name, Transport)
+
+#W00 - W19 Row 5795 to Row 5875
+Dictionary %>% filter(str_starts(ICD_code, 'W0'))
+  START <- Dictionary %>%
+    filter(str_starts(ICD_code, 'W00')) %>%
+    select(Row)
+  START <- as.numeric(START) #5795
+Dictionary %>% filter(str_starts(ICD_code, 'W19'))
+  END <- Dictionary %>%
+    filter(str_starts(ICD_code, 'W19')) %>%
+    select(Row)
+  END <- as.numeric(END) # 5875
+
+Falls <- Dictionary %>%
+  slice(seq(START, END, by =1)) %>%
+  mutate(Falls = TRUE)%>%
+  select(ICD_code, ICD_name, Falls)
+
+#X85 - Y09
+Dictionary %>% filter(str_starts(ICD_code, 'X85'))
+  START <- Dictionary %>%
+    filter(str_starts(ICD_code, 'X8502')) %>%
+    select(Row)
+  START <- as.numeric(START) #6065
+Dictionary %>% filter(str_starts(ICD_code, 'Y09'))
+  END <- Dictionary %>%
+    filter(str_starts(ICD_code, 'Y0909')) %>%
+    select(Row)
+  END <- as.numeric(END) # 6192
+
+Assaults <- Dictionary %>%
+  slice(seq(START, END, by =1)) %>%
+  mutate(Assaults = TRUE) %>%
+  select(ICD_code, ICD_name, Assaults)
+
+#W20 - 264 Other accidents 1
+Dictionary %>% filter(str_starts(ICD_code, 'W20'))
+  START <- Dictionary %>%
+    filter(str_starts(ICD_code, 'W20')) %>%
+    select(Row)
+  START <- as.numeric(START) #5876
+Dictionary %>% filter(str_starts(ICD_code, 'W64'))
+  END <- Dictionary %>%
+    filter(str_starts(ICD_code, 'W64')) %>%
+    select(Row)
+  END <- as.numeric(END) # 5954
+
+Other1 <- Dictionary %>%
+  slice(seq(START, END, by =1)) %>%
+  mutate(Other = TRUE)
+
+#X60 - X84 Other accidents 2
+Dictionary %>% filter(str_starts(ICD_code, 'X60'))
+  START <- Dictionary %>%
+    filter(str_starts(ICD_code, 'X60')) %>%
+    select(Row)
+  START <- as.numeric(START) #6025
+Dictionary %>% filter(str_starts(ICD_code, 'X84'))
+  END <- Dictionary %>%
+    filter(str_starts(ICD_code, 'X84')) %>%
+    select(Row)
+  END <- as.numeric(END) # 6064
+
+Other2 <- Dictionary %>%
+  slice(seq(START, END, by =1)) %>%
+  mutate(Other = TRUE)
+
+Other = Other1 %>%
+  rbind(Other2) %>%
+  select(ICD_code, ICD_name, Other)
+
+rm(Other1, Other2)
+
+```
+
+# Associated factors
+Associated factor codes
+
+Drug use      F11-F16, F18-F19, X40-4, X60-4, Z72.2
+Alcohol use   F10.0-8, T51.0, T51.9, X45, X65, Y90.1-9, Z72.1   
+Sport         Y92.30-9
+Recreation    U50-U72
+
+These have to be *manually* checked every time the data change to find the first and last (e.g. W00, W000, W009 etc...)
+
+Checked `r Sys.Date()`  Anthony Staines 
+
+```{r}
+# Drug use
+# F11-F16, F18-F19, X40-4, X60-4, Z72.2
+Dictionary %>% filter(str_starts(ICD_code, 'F11'))
+Dictionary %>% filter(str_starts(ICD_code, 'F16'))
+Dictionary %>% filter(str_starts(ICD_code, 'F18'))
+Dictionary %>% filter(str_starts(ICD_code, 'F19'))
+                      
+Row <- Dictionary %>%
+  filter(ICD_code >= 'F110' & ICD_code < 'F170')%>%
+  rbind(Dictionary %>%
+          filter(str_starts(ICD_code, 'F18') |
+                   str_starts(ICD_code, 'F19'))) %>%
+  rbind(Dictionary %>%
+          filter(ICD_code >= 'X40' & ICD_code < 'X45')) %>%
+  rbind(Dictionary %>%
+          filter(ICD_code >= 'X60' & ICD_code < 'X65')) %>%
+  rbind(Dictionary %>%
+          filter(ICD_code == 'Z722'))
+
+RowSlice <- Row %>% select(Row)
+  RowSlice <- RowSlice$Row
+
+Drug <-  Dictionary %>%
+  slice(RowSlice) %>%
+  mutate(Drug = TRUE)%>%
+  select(ICD_code, ICD_name, Drug)
+
+
+#Alcohol use
+# F10.0-8, T51.0, T51.9, X45, X65, Y90.1-9, Z72.1
+Row <- Dictionary %>% filter((str_starts(ICD_code, 'F10') & !str_starts(ICD_code, 'F109')) |
+                        str_starts(ICD_code, 'T510') | str_starts(ICD_code, 'T519'))
+
+Row <- Row %>% rbind(
+Dictionary %>% filter(str_starts(ICD_code, 'X45') | str_starts(ICD_code, 'X65'))
+  )
+
+Row <- Row %>% rbind(
+  Dictionary %>% filter(str_starts(ICD_code, 'Y90') | str_starts(ICD_code, 'Z721'))
+  )
+
+RowSlice <- Row %>% select(Row)
+  RowSlice <- RowSlice$Row
+
+Alcohol <-  Dictionary %>%
+  slice(RowSlice) %>%
+  mutate(Alcohol = TRUE)%>%
+  select(ICD_code, ICD_name, Alcohol)
+
+#Sport
+#Y9230 - Y9239 Row 6408 to Row 6416
+Dictionary %>% filter(str_starts(ICD_code, 'Y923'))
+  START <- Dictionary %>%
+    filter(str_starts(ICD_code, 'Y9230')) %>%
+    select(Row)
+  START <- as.numeric(START) #6408
+Dictionary %>% filter(str_starts(ICD_code, 'Y923'))
+  END <- Dictionary %>%
+    filter(str_starts(ICD_code, 'Y9239')) %>%
+    select(Row)
+  END <- as.numeric(END) # 6416
+
+Sport <- Dictionary %>%
+  slice(seq(START, END, by =1)) %>%
+  mutate(Sport = TRUE)%>%
+  select(ICD_code, ICD_name, Sport)
+
+#Recreation
+#U50 - U72 Row 5168 to Row 5310
+Dictionary %>% filter(str_starts(ICD_code, 'U5'))
+  START <- Dictionary %>%
+    filter(str_starts(ICD_code, 'U5000')) %>%
+    select(Row)
+  START <- as.numeric(START) #5168
+Dictionary %>% filter(str_starts(ICD_code, 'U7'))
+  END <- Dictionary %>%
+    filter(str_starts(ICD_code, 'U72')) %>%
+    select(Row)
+  END <- as.numeric(END) # 5310
+
+Recreation <- Dictionary %>%
+  slice(seq(START, END, by =1)) %>%
+  mutate(Recreation = TRUE)%>%
+  select(ICD_code, ICD_name, Recreation)
+
+Dictionary %>% slice(seq(1,5),seq(6,10))
+Dictionary %>% slice(seq(1,5),6,seq(7,10))
+
+```
+
+#Associated injury
+Other mechanical trauma   S10-T14
+Complications   T80-88
+Other injuries    T15-T79, T89
+
+These have to be *manually* checked every time the data change to find the first and last (e.g. W00, W000, W009 etc...)
+
+Checked `r Sys.Date()`  Anthony Staines 
+
+
+```{r}
+#Other mechanical trauma
+#S10-T14
+Dictionary %>% filter(str_starts(ICD_code, 'S10'))
+Dictionary %>% filter(str_starts(ICD_code, 'T14')) %>% tail()
+
+                      
+Row <- Dictionary %>%
+  filter(ICD_code >= 'S100' & ICD_code < 'T15') %>%
+  rbind(Dictionary %>%
+  filter(ICD_code >= 'T80' & ICD_code < 'T89'))
+
+RowSlice <- Row %>% select(Row)
+  RowSlice <- RowSlice$Row
+
+Other.mechanical <- Dictionary %>%
+  slice(RowSlice) %>%
+  mutate(Other.mechanical = TRUE)%>%
+  select(ICD_code, ICD_name, Other.mechanical)
+
+#Complications
+#T80-88
+
+Dictionary %>% filter(str_starts(ICD_code, 'T8')) 
+Dictionary %>% filter(str_starts(ICD_code, 'T88'))
+
+Row <- Dictionary %>%
+  filter(ICD_code >= 'T8' & ICD_code < 'T89')
+
+RowSlice <- Row %>% select(Row)
+  RowSlice <- RowSlice$Row
+
+Complications <- Dictionary %>%
+  slice(RowSlice) %>%
+  mutate(Complications = TRUE)%>%
+  select(ICD_code, ICD_name, Complications)
+
+
+#Other injuries
+#T15-T79, T89
+Dictionary %>% filter(str_starts(ICD_code, 'T15'))
+Dictionary %>% filter(str_starts(ICD_code, 'T79'))
+Dictionary %>% filter(str_starts(ICD_code, 'T89'))
+
+
+Row <- Dictionary %>%
+  filter(ICD_code >= 'T15' & ICD_code < 'T80'| str_starts(ICD_code, 'T89'))
+
+RowSlice <- Row %>% select(Row)
+  RowSlice <- RowSlice$Row
+
+Other.injuries <- Dictionary %>%
+  slice(RowSlice) %>%
+  mutate(Other.injuries = TRUE)%>%
+  select(ICD_code, ICD_name, Other.injuries)
+
+```
+
+
+Join the external code groups to the individual files
+Transport, Falls, Assaults, Other
+Drug, Alcohol, Sport, Recreation
+Other.mechanical, Complications, Other.injuries
+
+```{r}
+names(TBIl)
+
+TBIl2 <- TBIl %>%
+  left_join(Transport,  by = c("ICD_code", "ICD_name")) %>%
+  left_join(Falls,  by = c("ICD_code", "ICD_name")) %>%
+  left_join(Assaults,  by = c("ICD_code", "ICD_name")) %>%
+  left_join(Other,  by = c("ICD_code", "ICD_name")) %>%
+  left_join(Drug,  by = c("ICD_code", "ICD_name")) %>%
+  left_join(Alcohol,  by = c("ICD_code", "ICD_name")) %>%
+  left_join(Sport,  by = c("ICD_code", "ICD_name")) %>%
+  left_join(Recreation,  by = c("ICD_code", "ICD_name")) %>%
+  left_join(Other.mechanical,  by = c("ICD_code", "ICD_name")) %>%
+  left_join(Complications,  by = c("ICD_code", "ICD_name")) %>%
+  left_join(Other.injuries,  by = c("ICD_code", "ICD_name"))
+
+names(TBIl2)
+
+rm(Row,CODES,Transport, Falls, Assaults, Other1, Other2, Other,
+   Transport, Falls, Assaults, Other,
+   Drug, Alcohol, Sport, Recreation,
+   Other.mechanical, Complications, Other.injuries,
+   END,RowSlice,START)
+```
+
+
+#Working file
 
 ```{r}
 TBIw <- TBI %>%
