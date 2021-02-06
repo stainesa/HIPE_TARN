@@ -15,7 +15,7 @@ library(lubridate)
 library(gt)
 library(kableExtra)
 library(tidyverse)
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE,cache = TRUE)
 ```
 
 # Load files
@@ -233,9 +233,6 @@ Dictionary <- TBI %>%
 
 # Working data set
 
-Advice?
-Suggest, exclude all electives.
-Require SO6 as Dx_1 or SO6 + Vcode
 
 ```{r}
 
@@ -298,7 +295,7 @@ rm(Codes_used_all_Dx, Codes_used_by_Dx, Codes_used_Dx_1)
 Each row is one diagnosis for one HIPE episode. Patients with many diagnoses have many rows.
 
 ```{r}
-TBIl <- TBI %>%
+TBI_l <- TBI %>%
   select(ID,E_MRN,Hospital_name,starts_with('Dx')) %>%
   pivot_longer(cols = c(Dx_1_ICD_code:Dx_30_ICD_code,
          Dx_1_ICD_name:Dx_30_ICD_name),
@@ -308,46 +305,134 @@ TBIl <- TBI %>%
 
 ```
 
-Work though codes in Oz paper
+Work through codes in Oz paper
 Pozzato I, Tate RL, Rosenkoetter U, Cameron ID. Epidemiology of hospitalised traumatic brain injury in the state of New South Wales, Australia: a population-based study. Australian and New Zealand Journal of Public Health [Internet]. 2019 [cited 2021 Feb 2];43(4):382–8. Available from: https://onlinelibrary.wiley.com/doi/abs/10.1111/1753-6405.12878
 
+## Defining features of injury
 
+### TBI Diagnosis Codes 1
+
+Skull fracture
+ Fracture of vault or base of the skull S02.0- S02.1
+ Fractures of skull and facial bones of other or unspecified nature S02.7- S02.9
+
+Intracranial injury
+ Concussion  S06.00
+ Traumatic cerebral oedema S06.1
+ Diffuse cerebral/cerebellar contusions or haematomas  S06.20-S06.28
+ Focal cerebral/cerebellar contusion or haematoma  S06.30- S06.38
+ Epidural/subarachnoid/subdural haemorrhage  S06.4- S06.6
+ Intracranial injuries of other or unspecified nature  S06.8- S06.9
+
+Crush injury of the head
+ Crushing injury of skull  S07.1
+ 
 ```{r}
-CODES <- TBIl %>% 
+CODES <- TBI_l %>% 
   select(ICD_code) %>%
   group_by(ICD_code) %>%
   summarise(N = n()) %>%
   arrange(desc(N)) # 6,842 codes used
 
+#
+# Skull fracture
+# Fracture of vault or base of the skull S02.0- S02.1
+# Fractures of skull and facial bones of other or unspecified nature S02.7- S02.9
+#
+#Intracranial injury
+# Concussion  S06.00
+# Traumatic cerebral oedema S06.1
+# Diffuse cerebral/cerebellar contusions or haematomas  S06.20-S06.28
+# Focal cerebral/cerebellar contusion or haematoma  S06.30- S06.38
+# Epidural/subarachnoid/subdural haemorrhage  S06.4- S06.6
+# Intracranial injuries of other or unspecified nature  S06.8- S06.9
+#
+#Crush injury of the head
+# Crushing injury of skull  S07.1
+# 
+
 CODES <- CODES %>%
   mutate(Skull = str_detect(ICD_code, 'S020|S021|S027|S028|S029')) %>%
-  mutate(IC_Injury = str_detect(ICD_code, 'S060|S061|S062|S063|S064|S065|S066|S068|S069|S071')) %>%
-  mutate(LOC = str_detect(ICD_code, 'S0601|S0602|S0603|S0604|S0605')) %>%
-  mutate(LOC.Duration = recode(ICD_code,
-                           'S0601' = 'n.s. ',
-                           'S0602' = '< 0.5',
-                           'S0603' = '< 24 ',
-                           'S0604' = '> 24 ',
-                           'S0605' = '> 24 ',
-                           .default = NA_character_
-                           )) %>%
-  mutate(PTA = str_detect(ICD_code, 'F0400|F0401|F0402|F0403')) %>%
-  mutate(PTA.Duration = recode(ICD_code,
-                           'F0400' = 'n.s. ',
-                           'F0401' = '< 1d',
-                           'F0402' = '< 2w ',
-                           'F0403' = '> 2w ',
-                           .default = NA_character_
-                           )) %>%
-  select(-N) # Drop the count
-
-TBIl <- TBIl %>%
-  left_join(CODES, by = "ICD_code")
-
-rm(Codes)
+    mutate(Skull = ifelse(Skull, Skull, NA)) %>%
+  mutate(IC_injury = str_detect(ICD_code, 'S060|S061|S062|S063|S064|S065|S066|S068|S069|S071')) %>%
+    mutate(IC_injury = ifelse(IC_injury, IC_injury, NA)) %>% 
+  mutate(Crush = str_detect(ICD_code, 'S071')) %>%
+    mutate(Crush = ifelse(Crush, Crush, NA))
 ```
 
-E-codes
+
+### TBI diagnosis Codes #2
+
+Loss of consciousness
+
+ LoC of unspecified duration  S06.01
+ LoC < 30 min                 S06.02
+ LoC 30 min to 24 hours       S06.03
+ LoC > 24 hours               S06.04-05
+
+```{r}
+#
+#LOC
+# LoC of unspecified duration   S06.01
+# LoC < 30 min                  S06.02
+# LoC 30 min to 24 hours        S06.03
+# LoC > 24 hours                S06.04-05
+#
+CODES <- CODES %>%
+  mutate(LOC = str_detect(ICD_code, 'S0601|S0602|S0603|S0604|S0605')) %>%
+    mutate(LOC = ifelse(LOC, LOC, NA)) %>%
+  mutate(LOC_duration = recode(ICD_code,
+                           'S0601' = 'n.s.',
+                           'S0602' = '< 0.5',
+                           'S0603' = '< 24',
+                           'S0604' = '> 24',
+                           'S0605' = '> 24',
+                           .default = NA_character_
+                           ))
+```
+
+## Injury-related characteristics
+
+### Other TBI severity codes
+
+#### Post traumatic amnesia
+
+ PTA of unspecified duration   F04.0
+ PTA < 24 hours                F04.1
+ PTA 24 hours to 2 weeks       F04.2
+ PTA ≥ 2 weeks                 F04.3
+
+
+```{r}
+#Post traumatic amnesia
+# PTA of unspecified duration   F04.0
+# PTA < 24 hours                F04.1
+# PTA 24 hours to 2 weeks       F04.2
+# PTA ≥ 2 weeks                 F04.3
+#
+CODES <- CODES %>%
+  mutate(PTA = str_detect(ICD_code, 'F0400|F0401|F0402|F0403')) %>%
+    mutate(PTA = ifelse(PTA, PTA, NA)) %>%
+  mutate(PTA_duration = recode(ICD_code,
+                           'F0400' = 'n.s.',
+                           'F0401' = '< 1d',
+                           'F0402' = '< 2w',
+                           'F0403' = '> 2w',
+                           .default = NA_character_
+                           )) %>%
+    select(-N) # Drop the count
+```
+
+We've now got a file which classifies each code used in the data set into one of five groups Skull, IC_injury, Crush, LOC, LOC_duration, PTA, and PTA_duration. We join this back into TBI_l"
+
+```{r}
+TBI_l <- TBI_l %>%
+  left_join(CODES, by = "ICD_code")
+
+rm(CODES)
+```
+
+#### E-codes
 External cause codes (E-Codes)
 
 Transport accidents   V01-V99
@@ -448,10 +533,10 @@ rm(Other1, Other2)
 # Associated factors
 Associated factor codes
 
-Drug use      F11-F16, F18-F19, X40-4, X60-4, Z72.2
-Alcohol use   F10.0-8, T51.0, T51.9, X45, X65, Y90.1-9, Z72.1   
-Sport         Y92.30-9
-Recreation    U50-U72
+ Drug use      F11-F16, F18-F19, X40-4, X60-4, Z72.2
+ Alcohol use   F10.0-8, T51.0, T51.9, X45, X65, Y90.1-9, Z72.1   
+ Sport         Y92.30-9
+ Recreation    U50-U72
 
 These have to be *manually* checked every time the data change to find the first and last (e.g. W00, W000, W009 etc...)
 
@@ -548,10 +633,11 @@ Dictionary %>% slice(seq(1,5),6,seq(7,10))
 
 ```
 
-#Associated injury
-Other mechanical trauma   S10-T14
-Complications   T80-88
-Other injuries    T15-T79, T89
+## Associated injury
+
+ Other mechanical trauma   S10-T14
+ Complications   T80-88
+ Other injuries    T15-T79, T89
 
 These have to be *manually* checked every time the data change to find the first and last (e.g. W00, W000, W009 etc...)
 
@@ -617,15 +703,16 @@ Other.injuries <- Dictionary %>%
 ```
 
 
+#Merge the codes
 Join the external code groups to the individual files
-Transport, Falls, Assaults, Other
-Drug, Alcohol, Sport, Recreation
-Other.mechanical, Complications, Other.injuries
+ Transport, Falls, Assaults, Other
+ Drug, Alcohol, Sport, Recreation
+ Other.mechanical, Complications, Other.injuries
 
 ```{r}
-names(TBIl)
+names(TBI_l)
 
-TBIl2 <- TBIl %>%
+TBI_l <- TBI_l %>%
   left_join(Transport,  by = c("ICD_code", "ICD_name")) %>%
   left_join(Falls,  by = c("ICD_code", "ICD_name")) %>%
   left_join(Assaults,  by = c("ICD_code", "ICD_name")) %>%
@@ -638,31 +725,192 @@ TBIl2 <- TBIl %>%
   left_join(Complications,  by = c("ICD_code", "ICD_name")) %>%
   left_join(Other.injuries,  by = c("ICD_code", "ICD_name"))
 
-names(TBIl2)
+names(TBI_l)
 
-rm(Row,CODES,Transport, Falls, Assaults, Other1, Other2, Other,
-   Transport, Falls, Assaults, Other,
+rm(Transport, Falls, Assaults, Other,
    Drug, Alcohol, Sport, Recreation,
    Other.mechanical, Complications, Other.injuries,
-   END,RowSlice,START)
+   Row,END,RowSlice,START)
 ```
 
 
-#Working file
+# Widen the file
+The main file TBI_l now has one row per diagnosis. For many purposes we will need one row per person.
+
 
 ```{r}
-TBIw <- TBI %>%
-  # Lose electives, maternity and newborns
-  filter(Admission_type == 'Emergency' |
-           Admission_type == 'Emergency Readmission') 
+#The subfiles come in numerical order
+#
+
+#TBI_0
+# This file has the ID, the E_MRN, and all the diagnoses in a row.
+#
+TBI_0 <- TBI_l %>%
+  pivot_wider(id_cols = c(ID, E_MRN), names_from = Dx, values_from = c(ICD_code, ICD_name))
+
+#TBI_1
+# Convert the per-diagnosis classifications of ancillary variables to per-person
+# Each is a group of up to 30 values, TRUE or NA
+# ~as.logical(sum(!is.na(.)))
+# The missing values are omitted
+# The non-missing values are summed
+# The total is converted to a logical value
+#
+TBI_1 <- TBI_l %>%
+  select(ID,E_MRN,Skull:LOC,PTA,Transport:Other.injuries) %>%
+  group_by(ID, E_MRN) %>%
+  summarise(across(Skull:Other.injuries, ~as.logical(sum(!is.na(.)))))
+
+# Quick check on codes for LOC and PTA duration
+unique(TBI_l$LOC_duration)
+unique(TBI_l$PTA_duration)
+
+#TBI_2
+# There are two duration variables, one for LOC and one for PTA
+# Some people have more than one, which is surprising
+#
+TBI_2 <- TBI_l %>%
+  select(ID,E_MRN,LOC_duration,PTA_duration) %>%
+  group_by(ID, E_MRN) %>%
+  mutate(LOCl = ifelse(is.na(LOC_duration),NA,TRUE)) %>%
+  mutate(PTAl = ifelse(is.na(PTA_duration),NA,TRUE))
+
+table(TBI_2$LOC_duration, useNA = 'ifany')
+table(TBI_2$PTA_duration, useNA = 'ifany')
+table(TBI_2$LOC_duration, TBI_2$PTA_duration, useNA = 'ifany')
+
+#Three have two LOC codes provided
+Check <- TBI_2 %>%
+  group_by(ID,E_MRN) %>%
+  summarise(across(LOCl:PTAl, ~sum(!is.na(.)))) %>%
+  filter(LOCl > 1)
+
+Check$ID 
+#
+# None have two PTA codes
+Check <- TBI_2 %>%
+  group_by(ID,E_MRN) %>%
+  summarise(across(LOCl:PTAl, ~sum(!is.na(.)))) %>%
+  filter(PTAl > 1)
+
+Check$ID 
+#
+#Manual fix
+# 31887 CVEATIY Two codes, S0602 and S0601 brief and unspecified, Dx1 and Dx5, Choose brief
+# 44727 COE5UI3 Two codes, S0601 and S0602 unspecified and brief, Dx2 and Dx15, Choose unspecified
+# 69836 8O#3VF1 Two codes, S0601 and S0602, brief and unspecified, Dx5 and Dx6, Choose brief
+#
+
+TBI_2 %>%
+  filter(ID == 31887)
+TBI_2 %>%
+  filter(ID == 44727)
+TBI_2 %>%
+  filter(ID == 69836)
+
+TBI_2$LOC_duration[TBI_2$ID == 31887 & TBI_2$LOC_duration == 'n.s.'] = NA_character_
+TBI_2$LOC_duration[TBI_2$ID == 44727 & TBI_2$LOC_duration == '< 0.5'] = NA_character_
+TBI_2$LOC_duration[TBI_2$ID == 69836 & TBI_2$LOC_duration == 'n.s.'] = NA_character_
+
+#Check
+# Recalculate logical variables with the new data
+#
+TBI_2 <- TBI_2 %>%
+  group_by(ID, E_MRN) %>%
+  mutate(LOCl = ifelse(is.na(LOC_duration),NA,TRUE)) %>%
+  mutate(PTAl = ifelse(is.na(PTA_duration),NA,TRUE))
+
+#Three had two LOC codes provided
+#Should be fixed by now
+#
+Check <- TBI_2 %>%
+  group_by(ID,E_MRN) %>%
+  summarise(across(LOCl:PTAl, ~sum(!is.na(.)))) %>%
+  filter(LOCl > 1)
+
+Check$ID 
+#Now zero length
+#
+
+# Recode the LOC and PTA durations as numbers
+#
+TBI_2 <- TBI_2 %>%
+  mutate(LOCn = recode(LOC_duration,
+                       'n.s.' = 0,
+                       '< 0.5' = 1,
+                       '< 24' = 2,
+                       '> 24' = 3,
+                       )) %>%
+  mutate(PTAn = recode(PTA_duration,
+                       'n.s.' = 0,
+                       '< 1d' = 1,
+                       '< 2w' = 2,
+                       '> 2w' = 3,
+                       ))
+
+#
+#TBI_3
+#  Cuts down to files with LOC
+#
+TBI_3 <- TBI_2 %>%
+  select(ID,E_MRN, LOC_duration, LOCl, LOCn) %>%
+  filter(!is.na(LOC_duration) | !is.na(LOCl) | !is.na(LOCn))
+
+Check <- TBI_3 %>%
+  select(ID,E_MRN) %>%
+  group_by(ID,E_MRN) %>%
+  summarise(N = n()) %>%
+  filter(N != 1)
+#All zero
+
+#
+#TBI_4
+#  Cuts down to files with PTA
+#
+TBI_4 <- TBI_2 %>%
+  select(ID,E_MRN, PTA_duration, PTAl, PTAn) %>%
+  filter(!is.na(PTA_duration) | !is.na(PTAl) | !is.na(PTAn))
+
+Check <- TBI_4 %>%
+  select(ID,E_MRN) %>%
+  group_by(ID,E_MRN) %>%
+  summarise(N = n()) %>%
+  filter(N != 1)
+#All zero
+
+#
+#Additional variables from TBI
+#
+TBI_5 <- TBI %>%
+  select(ID,E_MRN,Hospital_name:Team_code_principal,Transfer_from:`Dx_1_name_CCS-IM`,Proc_1_ACHI_name:AgeGrp)
+
+
+#
+#Merge the files
+# Diagnoses TBI_0,
+# Skull:Other.injuries TB.1,
+# LOC TBI_3
+# PTA TBI_4
+# Admission level variables TBI_5
+
+TBI_w <- TBI_0 %>%
+  left_join(TBI_1, by = c("ID", "E_MRN")) %>%
+  left_join(TBI_3, by = c("ID", "E_MRN")) %>%
+  left_join(TBI_4, by = c("ID", "E_MRN")) %>%
+  left_join(TBI_5, by = c("ID", "E_MRN"))
   
-TBIl <- TBIl %>%
-  mutate(S06 = str_detect(string = ICD_code, pattern = '^S06')) %>%
-  mutate(IC_Injury = str_detect(string = `Dx_1_name_CCS-IM`,
-                                pattern = 'Intracranial injury')) %>%
-  mutate(ELIGIBLE = (S06 | IC_Injury))
+  
 
-TBIw <- TBIw %>%
-  left_join(TBIl %>% filter(ELIGIBLE) %>% select(ID,ELIGIBLE) %>% distinct(), by = "ID")
+rm(TBI_0, TBI_1, TBI_2, TBI_3, TBI_4, TBI_5, Check)
+```
 
+#Save the data files for further work
+
+```{r}
+saveRDS(Dictionary, file='data/Dictionary.Rds')
+saveRDS(TBI, file='data/TBI_Rds')
+saveRDS(TBI_w, file='data/TBI_w.Rds')
+saveRDS(TBI_l, file='data/TBI_l.Rds')
+
+rm(list=ls())
 ```
