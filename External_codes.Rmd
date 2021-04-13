@@ -1,0 +1,701 @@
+---
+title: "External codes"
+author: "Anthony Staines & Anne O'Farrell"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+# Process external codes
+
+This files prepares the dictionary linking e-codes to the main groups used for analysis.
+
+```{r setup, include=FALSE}
+rm(list = ls())
+library(lubridate)
+library(gt)
+library(kableExtra)
+library(tidyverse)
+knitr::opts_chunk$set(echo = TRUE,cache = TRUE)
+```
+
+# Read in data
+
+```{r}
+TBI <- readRDS('data/TBI.Rds')
+TBI_l <- readRDS('data/TBI_l.Rds')
+
+Dictionary <- readRDS('data/Dictionary.Rds')
+
+```
+
+Order the dictionary correctly, and add the Row number as a variable
+
+```{r}
+Dictionary <- Dictionary %>%
+  arrange(ICD_code) %>%
+  mutate(Row = row_number())
+```
+
+# Work through codes in Oz paper
+
+Pozzato I, Tate RL, Rosenkoetter U, Cameron ID. Epidemiology of hospitalised traumatic brain injury in the state of New South Wales, Australia: a population-based study. Australian and New Zealand Journal of Public Health [Internet]. 2019 [cited 2021 Feb 2];43(4):382–8. Available from: https://onlinelibrary.wiley.com/doi/abs/10.1111/1753-6405.12878
+
+## Defining features of injury
+
+The first level of codes includes those reported as a skull fracture, an intra-cranial injury, or a crush injury to the head.
+
+### TBI Diagnosis Codes 1
+
+Skull fracture
+ Fracture of vault or base of the skull S02.0 - S02.1
+ Fractures of skull and facial bones of other or unspecified nature S02.7- S02.9
+
+Intracranial injury
+ Concussion  S06.00
+ Traumatic cerebral oedema S06.1
+ Diffuse cerebral/cerebellar contusions or haematomas  S06.20-S06.28
+ Focal cerebral/cerebellar contusion or haematoma  S06.30- S06.38
+ Epidural/subarachnoid/subdural haemorrhage  S06.4- S06.6
+ Intracranial injuries of other or unspecified nature  S06.8- S06.9
+
+Crush injury of the head
+ Crushing injury of skull  S07.1
+ 
+```{r}
+#
+# Skull fracture
+# Fracture of vault or base of the skull S02.0- S02.1
+# Fractures of skull and facial bones of other or unspecified nature S02.7- S02.9
+#
+Dictionary %>% filter(str_detect(ICD_code, 'S02'))
+Dictionary <- Dictionary %>%
+  mutate(Skull = str_detect(ICD_code, 'S020|S021|S027|S028|S029')) %>%
+    mutate(Skull = ifelse(Skull, Skull, NA))
+    table(Dictionary$Skull)
+
+#Intracranial injury
+# Concussion  S06.00
+# Traumatic cerebral oedema S06.1
+# Diffuse cerebral/cerebellar contusions or haematomas  S06.20-S06.28
+# Focal cerebral/cerebellar contusion or haematoma  S06.30- S06.38
+# Epidural/subarachnoid/subdural haemorrhage  S06.4- S06.6
+# Intracranial injuries of other or unspecified nature  S06.8- S06.9
+#
+Dictionary %>% filter(str_detect(ICD_code, 'S06'))
+Dictionary <- Dictionary %>%
+  mutate(IC_injury = str_detect(ICD_code, 'S060|S061|S062|S063|S064|S065|S066|S068|S069')) %>%
+    mutate(IC_injury = ifelse(IC_injury, IC_injury, NA))
+    table(Dictionary$IC_injury)
+
+#Crush injury of the head
+# Crushing injury of skull  S07.1 NONE RECORDED
+# 
+Dictionary %>% filter(str_detect(ICD_code, 'S07'))
+Dictionary <- Dictionary %>%
+  mutate(Crush = str_detect(ICD_code, 'S071')) %>%
+    mutate(Crush = ifelse(Crush, Crush, NA))
+    table(Dictionary$Crush)
+
+```
+
+
+### TBI diagnosis Codes #2
+
+Loss of consciousness
+
+ LoC of unspecified duration  S06.01
+ LoC < 30 min                 S06.02
+ LoC 30 min to 24 hours       S06.03
+ LoC > 24 hours               S06.04-05
+
+```{r}
+#
+#LOC
+# LoC of unspecified duration   S06.01
+# LoC < 30 min                  S06.02
+# LoC 30 min to 24 hours        S06.03
+# LoC > 24 hours                S06.04-05
+#
+Dictionary %>% filter(str_detect(ICD_code, 'S060'))
+Dictionary <- Dictionary %>%
+  mutate(LOC = str_detect(ICD_code, 'S0601|S0602|S0603|S0604|S0605')) %>%
+    mutate(LOC = ifelse(LOC, LOC, NA)) %>%
+  mutate(LOC_duration = recode(ICD_code,
+                           'S0601' = 'n.s.',
+                           'S0602' = '< 0.5',
+                           'S0603' = '< 24',
+                           'S0604' = '> 24',
+                           'S0605' = '> 24',
+                           .default = NA_character_
+                           ))
+```
+
+## Injury-related characteristics
+
+### Other TBI severity codes
+
+#### Post traumatic amnesia
+
+ PTA of unspecified duration   F04.0
+ PTA < 24 hours                F04.1
+ PTA 24 hours to 2 weeks       F04.2
+ PTA ≥ 2 weeks                 F04.3
+
+
+```{r}
+#Post traumatic amnesia
+# PTA of unspecified duration   F04.0
+# PTA < 24 hours                F04.1
+# PTA 24 hours to 2 weeks       F04.2
+# PTA ≥ 2 weeks                 F04.3
+#
+Dictionary %>% filter(str_detect(ICD_code, 'F04'))
+Dictionary <- Dictionary %>%
+  mutate(PTA = str_detect(ICD_code, 'F0400|F0401|F0402|F0403')) %>%
+    mutate(PTA = ifelse(PTA, PTA, NA)) %>%
+  mutate(PTA_duration = recode(ICD_code,
+                           'F0400' = 'n.s.',
+                           'F0401' = '< 1d',
+                           'F0402' = '< 2w',
+                           'F0403' = '> 2w',
+                           .default = NA_character_
+                           ))
+```
+
+We've now got a file which classifies each code used in the data set into one of five groups Skull, IC_injury, Crush, LOC, LOC_duration, PTA, and PTA_duration.
+
+### E-codes
+
+External causes are a whole chapter XX in ICD-10 broken down as follows.
+	XX External causes of morbidity and mortality  
+  	V01-X59 Accidents  
+	    V01-V99 Transport accidents
+	    W00-X59 Other external causes of accidental injury
+	  X60-X84 Intentional self-harm
+	  X85-Y09 Assault
+	  Y10-Y34 Event of undetermined intent
+	  Y35-Y36 Legal intervention and operations of war
+The last three blocks are not relevant
+	  Y40-Y84 Complications of medical and surgical care
+	  Y85-Y89 Sequelae of external causes of morbidity and mortality
+	  Y90-Y98 Supplementary factors related to causes of morbidity and mortality classified elsewhere
+
+Some subgroups of W are not relevant either
+	W50-W64 Exposure to animate mechanical forces
+	W65-W74 Accidental drowning and submersion
+	W75-W84 Other accidental threats to breathing
+	W85-W99 Exposure to electric current, radiation and extreme ambient air temperature and pressure
+	X00-X09 Exposure to smoke, fire and flames
+	X10-X19 Contact with heat and hot substances
+	X20-X29 Contact with venomous animals and plants
+	X30-X39 Exposure to forces of nature
+	X40-X49 Accidental poisoning by and exposure to noxious substances
+	X50-X57 Overexertion, travel and privation
+	X58-X59 Accidental exposure to other and unspecified factors
+
+#### E_block
+
+```{r}
+Dictionary %>% select(ICD_code) %>% filter(ICD_code >'U9999' & ICD_code < 'Y40')
+Dictionary %>% select(ICD_code) %>% filter(ICD_code >'U9999' & ICD_code < 'Y40') %>% tail()
+Dictionary %>% select(ICD_code) %>% filter(ICD_code >'W499' & ICD_code < 'X60')
+Dictionary %>% select(ICD_code) %>% filter(ICD_code >'W499' & ICD_code < 'X60') %>% tail
+
+Dictionary <- Dictionary %>%
+  mutate(E_block =  ifelse((ICD_code >'U9999' & ICD_code < 'Y40') &
+                             !(ICD_code >'W499' & ICD_code < 'X60'),TRUE,NA)) %>%
+  mutate(ICD_group = str_extract(ICD_code, '^[A-Z]\\d{2}'))
+
+```
+
+#### E-codes
+External cause codes (E-Codes)
+
+Transport accidents   V01-V99
+Falls                 W00-W19
+Assaults              X85-Y09
+Other accidents       W20-W64, X60-X84
+Undetermined          Y21-Y33 # Not in Pazzato? why?
+
+These have to be *manually* checked every time the data change to find the first and last (e.g. W00, W000, W009 etc...)
+
+Checked `r Sys.Date()`  Anthony Staines 
+
+```{r}
+#V01 - V99 inclusive
+Dictionary %>% filter(str_starts(ICD_code, 'V0')) %>% select(ICD_code,ICD_name,Row)
+Dictionary %>% filter(str_starts(ICD_code, 'V99')) %>% select(ICD_code,ICD_name,Row)
+Dictionary <- Dictionary %>%
+  mutate(Transport = if_else(str_starts(ICD_code, 'V' ),TRUE, NA))
+
+#W00 - W19 Falls
+Dictionary %>% filter(str_starts(ICD_code, 'W0')) %>% select(ICD_code,ICD_name,Row)
+Dictionary %>% filter(str_starts(ICD_code, 'W1')) %>% select(ICD_code,ICD_name,Row) %>% tail()
+Dictionary <- Dictionary %>%
+  mutate(Falls = ifelse ((ICD_code >= 'W0' & ICD_code <= 'W19'), TRUE, NA))
+    table(Dictionary$Falls)
+
+#X60 - X79 Intentional self harm
+#X80 - X84 Intentional self harm
+#
+Dictionary %>% filter(str_starts(ICD_code, 'X6'))  %>% select(ICD_code,ICD_name,Row)
+Dictionary %>% filter(str_starts(ICD_code, 'X7'))  %>% select(ICD_code,ICD_name,Row)
+Dictionary %>% filter(ICD_code > 'X8' & ICD_code < 'X85') %>% select(ICD_code,ICD_name,Row)
+Dictionary <- Dictionary %>%
+  mutate(Selfharm = ifelse ((ICD_code >= 'X60' & ICD_code <= 'X85'), TRUE, NA))
+    table(Dictionary$Selfharm)
+
+#X85 - Y09 Assaults
+Dictionary %>% filter(str_starts(ICD_code, 'X85')) %>% select(ICD_code,ICD_name,Row)
+Dictionary %>% filter(str_starts(ICD_code, 'Y09')) %>% select(ICD_code,ICD_name,Row)
+Dictionary <- Dictionary %>%
+  mutate(Assaults = ifelse ((ICD_code >= 'X85' & ICD_code < 'Y1'), TRUE, NA))
+    table(Dictionary$Assaults)
+
+#W20 - W64 Other accidents
+Dictionary %>% filter(str_starts(ICD_code, 'W2')) %>% select(ICD_code,ICD_name,Row)
+Dictionary %>% filter(str_starts(ICD_code, 'W6')) %>% select(ICD_code,ICD_name,Row)
+Dictionary <- Dictionary %>%
+  mutate(Other = ifelse ((ICD_code >= 'W2' & ICD_code <= 'W64'), TRUE, NA))
+    table(Dictionary$Other)
+
+# Y21 - Y33
+# Undetermined
+Dictionary %>% filter(str_starts(ICD_code, 'Y2')) %>% select(ICD_code,ICD_name,Row)
+Dictionary %>% filter(str_starts(ICD_code, 'Y3')) %>% select(ICD_code,ICD_name,Row)
+Dictionary <- Dictionary %>%
+  mutate(Undetermined = ifelse ((ICD_code >= 'Y20' & ICD_code <= 'Y34'), TRUE, NA))
+    table(Dictionary$Undetermined)
+
+```
+
+# Associated factors
+Associated factor codes
+
+ Drug use      F11-F16, F18-F19, X40-4, X60-4, Z72.2
+ Alcohol use   F10.0-8, T51.0, T51.9, X45, X65, Y90.1-9, Z72.1   
+ Sport         Y92.30-9
+ Recreation    U50-U72
+
+These have to be *manually* checked every time the data change to find the first and last (e.g. W00, W000, W009 etc...)
+
+Checked `r Sys.Date()`  Anthony Staines 
+
+```{r}
+# Drug use
+# F11-F16, F18-F19, X40-4, X60-4, Z72.2
+Dictionary %>% filter(str_starts(ICD_code, 'F11')) %>% select(ICD_code,ICD_name,Row)
+Dictionary %>% filter(str_starts(ICD_code, 'F12')) %>% select(ICD_code,ICD_name,Row)
+Dictionary %>% filter(str_starts(ICD_code, 'F13')) %>% select(ICD_code,ICD_name,Row)
+Dictionary %>% filter(str_starts(ICD_code, 'F14')) %>% select(ICD_code,ICD_name,Row)
+Dictionary %>% filter(str_starts(ICD_code, 'F15')) %>% select(ICD_code,ICD_name,Row)
+Dictionary %>% filter(str_starts(ICD_code, 'F16')) %>% select(ICD_code,ICD_name,Row)
+Dictionary %>% filter(str_starts(ICD_code, 'F17')) %>% select(ICD_code,ICD_name,Row)
+Dictionary %>% filter(str_starts(ICD_code, 'F18')) %>% select(ICD_code,ICD_name,Row)
+Dictionary %>% filter(str_starts(ICD_code, 'F19')) %>% select(ICD_code,ICD_name,Row)
+Dictionary %>% filter(str_starts(ICD_code, 'X4'))  %>% select(ICD_code,ICD_name,Row)
+Dictionary %>% filter(str_starts(ICD_code, 'X6'))  %>% select(ICD_code,ICD_name,Row)
+Dictionary %>% filter(str_starts(ICD_code, 'Z72')) %>% select(ICD_code,ICD_name,Row)
+
+Dictionary <- Dictionary %>%
+  mutate(Drug = ifelse ((ICD_code >= 'F11' & ICD_code < 'F17')|
+                       (ICD_code > 'F17' & ICD_code < 'F20')|
+                       (ICD_code >= 'X40' & ICD_code < 'X45')|
+                       (ICD_code >= 'X40' & ICD_code < 'X45')|
+                       (ICD_code >= 'X60' & ICD_code < 'X65')|
+                       (str_starts(ICD_code, 'Z72')), TRUE, NA))
+    table(Dictionary$Drug)
+
+#Alcohol use
+# F10.0-8, T51.0, T51.9, X45, X65, Y90.1-9, Z72.1
+#
+Dictionary %>% filter(str_starts(ICD_code, 'F10') |  str_starts(ICD_code, 'T510') | str_starts(ICD_code, 'T519'))  %>% select(ICD_code,ICD_name,Row)
+
+Dictionary %>% filter(str_starts(ICD_code, 'X45'))  %>% select(ICD_code,ICD_name,Row)
+Dictionary %>% filter(str_starts(ICD_code, 'X65'))  %>% select(ICD_code,ICD_name,Row)
+
+Dictionary %>% filter(str_starts(ICD_code, 'Y90') | str_starts(ICD_code, 'Z721'))  %>% select(ICD_code,ICD_name,Row)
+
+Dictionary <- Dictionary %>%
+  mutate(Alcohol = ifelse(
+    (str_starts(ICD_code, 'F10')) |
+    (str_starts(ICD_code, 'T510')) |
+    (str_starts(ICD_code, 'X45')) |
+    (str_starts(ICD_code, 'X65')) |
+    (str_starts(ICD_code, 'Y90')) |
+    (str_starts(ICD_code, 'Z721')), TRUE, NA)) 
+    table(Dictionary$Alcohol)
+
+#Sport
+#Y9230 - Y9239 Row 6408 to Row 6416
+#
+Dictionary %>% filter(str_starts(ICD_code, 'Y923'))  %>% select(ICD_code,ICD_name,Row)
+
+Dictionary <- Dictionary %>%
+  mutate(Sport = ifelse(str_starts(ICD_code, 'Y923'), TRUE, NA))
+    table(Dictionary$Sport)
+
+#Recreation
+#U50 - U72 Row 5168 to Row 5310
+Dictionary %>% filter(str_starts(ICD_code, 'U5'))  %>% select(ICD_code,ICD_name,Row)
+Dictionary %>% filter(str_starts(ICD_code, 'U6'))  %>% select(ICD_code,ICD_name,Row)
+Dictionary %>% filter(str_starts(ICD_code, 'U7'))  %>% select(ICD_code,ICD_name,Row)
+
+Dictionary <- Dictionary %>%
+  mutate(Recreation = ifelse(ICD_code >='U5000' & ICD_code < 'U7300', TRUE, NA))
+    table(Dictionary$Recreation)
+
+```
+
+## Associated injury
+
+ Other mechanical trauma   S10-T14
+ Complications   T80-88
+ Other injuries    T15-T79, T89
+
+These have to be *manually* checked every time the data change to find the first and last (e.g. W00, W000, W009 etc...)
+
+Checked `r Sys.Date()`  Anthony Staines 
+
+
+```{r}
+#Other mechanical trauma
+#S10-T14
+Dictionary %>% filter(str_starts(ICD_code, 'S10'))  %>% select(ICD_code,ICD_name,Row)
+Dictionary %>% filter(str_starts(ICD_code, 'T14'))  %>% select(ICD_code,ICD_name,Row)
+
+Dictionary <- Dictionary %>%
+  mutate(Other_mechanical = ifelse(ICD_code >= 'S100' & ICD_code < 'T15', TRUE, NA))
+    table(Dictionary$Other_mechanical)
+
+#Complications
+#T80-88
+
+Dictionary %>% filter(str_starts(ICD_code, 'T80')) %>% select(ICD_code,ICD_name,Row)
+Dictionary %>% filter(str_starts(ICD_code, 'T88')) %>% select(ICD_code,ICD_name,Row)
+Dictionary %>% filter(str_starts(ICD_code, 'T89')) %>% select(ICD_code,ICD_name,Row)
+
+Dictionary <- Dictionary %>%
+  mutate(Complications = ifelse(ICD_code >= 'T8' & ICD_code < 'T89', TRUE, NA))
+    table(Dictionary$Complications)
+  
+
+#Other injuries
+#T15-T79, T89
+Dictionary %>% filter(str_starts(ICD_code, 'T15')) %>% select(ICD_code,ICD_name,Row)
+Dictionary %>% filter(str_starts(ICD_code, 'T79')) %>% select(ICD_code,ICD_name,Row)
+Dictionary %>% filter(str_starts(ICD_code, 'T89')) %>% select(ICD_code,ICD_name,Row)
+
+Dictionary <- Dictionary %>%
+  mutate(Other_injuries = ifelse((ICD_code >= 'T15' & ICD_code < 'T80')| str_starts(ICD_code, 'T89'), TRUE, NA))
+    table(Dictionary$Other_injuries)
+
+```
+
+
+## Exclusions
+
+Syncope and collapse R55
+
+```{r}
+#
+# Syncope and collapse R55
+#
+Dictionary %>% filter(str_starts(ICD_code, 'R5'))  %>% select(ICD_code,ICD_name,Row)
+Dictionary %>% filter(str_starts(ICD_code, 'R5'))  %>% select(ICD_code,ICD_name,Row) %>% tail(12)
+
+Dictionary <- Dictionary %>%
+  mutate(Syncope = ifelse(ICD_code == 'R55', TRUE, NA))
+    table(Dictionary$Syncope)
+
+```
+
+## E_block and External
+
+E_block is an ICD code in the relevant set of codes
+External is a code in Transport, Falls, Assaults, Other
+
+```{r}
+D <- Dictionary %>%
+  select(ICD_group, ICD_code, E_block,Transport, Falls, Assaults, Other, Undetermined, Selfharm) %>%
+  mutate(External = ifelse((Transport | Falls | Assaults | Other), TRUE, NA))
+
+table(D$E_block, D$External, useNA = 'ifany')
+
+```
+
+
+Following a manual check all the codes in the E_Block with no External code should not have an External code
+
+
+#Merge the codes
+Join the external code groups to the individual files
+ E_block, ICD_group
+ Transport, Falls, Assaults, Other
+ Selfharm, Undetermined,
+ Drug, Alcohol, Sport, Recreation
+ Other_mechanical, Complications, Other_injuries
+ Syncope
+
+```{r}
+names(TBI_l)
+
+TBI_l <- TBI_l %>%
+  left_join(Dictionary, by = c("ICD_code", "ICD_name"))
+
+names(TBI_l)
+
+```
+
+# Widen the file
+The main file TBI_l now has one row per diagnosis. For many purposes we will need one row per person.
+
+```{r}
+#The subfiles come in numerical order
+#
+
+#TBI_0
+# This file has the ID, the E_MRN, and all the diagnoses in a row.
+#
+TBI_0 <- TBI_l %>%
+  pivot_wider(id_cols = c(ID, E_MRN), names_from = Dx, values_from = c(ICD_code, ICD_name))
+
+#TBI_1
+# Convert the per-diagnosis classifications of ancillary variables to per-person
+# Each is a group of up to 30 values, TRUE or NA
+# ~as.logical(sum(!is.na(.)))
+# The missing values are omitted
+# The non-missing values are summed
+# The total is converted to a logical value
+#
+TBI_1 <- TBI_l %>%
+  select(ID,E_MRN,Skull:LOC,PTA,E_block, Transport:Syncope) %>% # Leave out durations and ICD_group
+  group_by(ID, E_MRN) %>%
+  summarise(across(Skull:Syncope, ~as.logical(sum(!is.na(.))))) # Total of non-missing values as a 0,1 logical
+
+# Quick check on codes for LOC and PTA duration
+unique(TBI_l$LOC_duration)
+unique(TBI_l$PTA_duration)
+
+#TBI_2
+# There are two duration variables, one for LOC and one for PTA
+# Some people have more than one, which is surprising
+#
+TBI_2 <- TBI_l %>%
+  select(ID,E_MRN,LOC_duration,PTA_duration) %>%
+  group_by(ID, E_MRN) %>%
+  mutate(LOCl = ifelse(is.na(LOC_duration),NA,TRUE)) %>%
+  mutate(PTAl = ifelse(is.na(PTA_duration),NA,TRUE))
+
+table(TBI_2$LOC_duration, useNA = 'ifany')
+table(TBI_2$PTA_duration, useNA = 'ifany')
+table(TBI_2$LOC_duration, TBI_2$PTA_duration, useNA = 'ifany')
+
+# None have two PTA codes
+Check <- TBI_2 %>%
+  group_by(ID,E_MRN) %>%
+  summarise(across(LOCl:PTAl, ~sum(!is.na(.)))) %>%
+  filter(PTAl > 1)
+
+Check$ID 
+#
+#Three have two LOC codes provided
+Check <- TBI_2 %>%
+  group_by(ID,E_MRN) %>%
+  summarise(across(LOCl:PTAl, ~sum(!is.na(.)))) %>%
+  filter(LOCl > 1)
+
+Check$ID 
+#
+#Manual fix
+# 33983 CVEATIY Two codes, S0602 and S0601 brief and unspecified, Dx1 and Dx5, Choose brief
+# 46823 COE5UI3 Two codes, S0601 and S0602 unspecified and brief, Dx2 and Dx15, Choose unspecified
+# 71932 8O#3VF1 Two codes, S0601 and S0602, brief and unspecified, Dx5 and Dx6, Choose brief
+#
+
+TBI_0 %>%
+  filter(ID == 33983) %>% paste()
+TBI_0 %>%
+  filter(ID == 46823) %>% paste()
+TBI_0 %>%
+  filter(ID == 71932) %>% paste()
+
+TBI_2$LOC_duration[TBI_2$ID == 33983 & TBI_2$LOC_duration == 'n.s.'] = NA_character_
+TBI_2$LOC_duration[TBI_2$ID == 46823 & TBI_2$LOC_duration == '< 0.5'] = NA_character_
+TBI_2$LOC_duration[TBI_2$ID == 71932 & TBI_2$LOC_duration == 'n.s.'] = NA_character_
+
+#Check
+# Recalculate logical variables with the new data
+#
+TBI_2 <- TBI_2 %>%
+  group_by(ID, E_MRN) %>%
+  mutate(LOCl = ifelse(is.na(LOC_duration),NA,TRUE)) %>%
+  mutate(PTAl = ifelse(is.na(PTA_duration),NA,TRUE))
+
+#Three had two LOC codes provided
+#Should be fixed by now
+#
+Check <- TBI_2 %>%
+  group_by(ID,E_MRN) %>%
+  summarise(across(LOCl:PTAl, ~sum(!is.na(.)))) %>%
+  filter(LOCl > 1)
+
+Check$ID 
+#Now zero length
+#
+
+# Recode the LOC and PTA durations as numbers
+#
+TBI_2 <- TBI_2 %>%
+  mutate(LOCn = recode(LOC_duration,
+                       'n.s.' = 0,
+                       '< 0.5' = 1,
+                       '< 24' = 2,
+                       '> 24' = 3,
+                       )) %>%
+  mutate(PTAn = recode(PTA_duration,
+                       'n.s.' = 0,
+                       '< 1d' = 1,
+                       '< 2w' = 2,
+                       '> 2w' = 3,
+                       ))
+
+#
+#TBI_3
+#  Cuts down to files with LOC
+#
+TBI_3 <- TBI_2 %>%
+  select(ID,E_MRN, LOC_duration, LOCl, LOCn) %>%
+  filter(!is.na(LOC_duration) | !is.na(LOCl) | !is.na(LOCn))
+
+Check <- TBI_3 %>%
+  select(ID,E_MRN) %>%
+  group_by(ID,E_MRN) %>%
+  summarise(N = n()) %>%
+  filter(N != 1)
+Check
+#All zero
+
+#
+#TBI_4
+#  Cuts down to files with PTA
+#
+TBI_4 <- TBI_2 %>%
+  select(ID,E_MRN, PTA_duration, PTAl, PTAn) %>%
+  filter(!is.na(PTA_duration) | !is.na(PTAl) | !is.na(PTAn))
+
+Check <- TBI_4 %>%
+  select(ID,E_MRN) %>%
+  group_by(ID,E_MRN) %>%
+  summarise(N = n()) %>%
+  filter(N != 1)
+Check
+#All zero
+
+#
+#Additional variables from TBI
+#
+TBI_5 <- TBI %>%
+  select(ID,E_MRN,Hospital_name:Team_code_principal,Transfer_from:Dx_1_name_CCS_IM,Proc_1_ACHI_name:Age_group)
+
+
+#
+#Merge the files
+# Diagnoses TBI_D,
+# Skull:Syncope TB.1,
+# LOC TBI_3
+# PTA TBI_4
+# Admission level variables TBI_5
+
+TBI_w <- TBI_1 %>%
+  left_join(TBI_3, by = c("ID", "E_MRN")) %>%
+  left_join(TBI_4, by = c("ID", "E_MRN")) %>%
+  left_join(TBI_5, by = c("ID", "E_MRN")) %>%
+  left_join(TBI_0, by = c("ID", "E_MRN")) %>% # Puts diagnoses at the end
+  ungroup()
+
+names(TBI_w)  
+  
+
+rm(TBI_0, TBI_1, TBI_2, TBI_3, TBI_4, TBI_5, Check)
+```
+
+# Code multiple E-causes
+
+```{r}
+
+TBI_w <- TBI_w %>%
+  mutate(External = ifelse((Transport + Falls + Assaults + Other > 0), TRUE, FALSE)) %>% #Any E-code
+  mutate(Multiple = ifelse((Transport + Falls + Assaults + Other > 1), TRUE, FALSE)) %>%
+  mutate(Transport_only = ifelse(Multiple,FALSE,Transport)) %>%
+  mutate(Falls_only     = ifelse(Multiple,FALSE,Falls    )) %>%
+  mutate(Assaults_only  = ifelse(Multiple,FALSE,Assaults )) %>%
+  mutate(Other_only     = ifelse(Multiple,FALSE,Other    )) # Other, but not Multiple...
+
+#Check
+table(TBI_w$External)
+table(TBI_w$External, TBI_w$E_block)
+
+table(TBI_w$Multiple)
+table(TBI_w$Transport,TBI_w$Multiple)
+table(TBI_w$Transport_only,TBI_w$Multiple)
+table(TBI_w$Falls,TBI_w$Multiple)
+table(TBI_w$Falls_only,TBI_w$Multiple)
+table(TBI_w$Assaults,TBI_w$Multiple)
+table(TBI_w$Assaults_only,TBI_w$Multiple)
+table(TBI_w$Other,TBI_w$Multiple)
+table(TBI_w$Other_only,TBI_w$Multiple)
+
+TBI_w <- TBI_w %>%
+  mutate(E_group = if_else(External,'***',NA_character_)) %>%
+  mutate(E_group = if_else(Transport_only,'Transport',E_group)) %>%
+  mutate(E_group = if_else(Falls_only,'Falls',E_group)) %>%
+  mutate(E_group = if_else(Assaults_only,'Assaults',E_group)) %>%
+  mutate(E_group = if_else(Other_only,'Other',E_group)) %>%
+  mutate(E_group = if_else(Multiple,'Multiple',E_group))
+  
+  
+table(TBI_w$External, useNA = 'ifany')
+table(TBI_w$E_group, useNA = 'ifany')
+table(TBI_w$E_block, useNA = 'ifany')
+table(TBI_w$External,TBI_w$E_group, useNA = 'ifany')
+table(TBI_w$E_block,TBI_w$E_group, useNA = 'ifany')
+
+Check1 <- TBI_w %>% filter(!E_block & External)
+
+table(TBI_w$Gender,TBI_w$E_group, useNA = 'ifany')
+table(TBI_w$Age_group,TBI_w$E_group, useNA = 'ifany')
+table(TBI_w$External,TBI_w$Undetermined, useNA = 'ifany')
+table(TBI_w$E_group,TBI_w$Undetermined, useNA = 'ifany')
+
+```
+
+## Check to see if there are multiple intents
+
+```{r}
+
+table(TBI_w$Selfharm)
+table(TBI_w$Undetermined)
+table(TBI_w$Selfharm, TBI_w$Undetermined)
+
+TT <- TBI_w %>% filter(Selfharm & Undetermined) # All five are likely self harm, based on the codes given
+TT$ID
+#  1034  7154 15230 26834 42655
+TBI_w <- TBI_w %>%
+  mutate(Undetermined = ifelse(Selfharm & Undetermined, FALSE, Undetermined))
+
+table(TBI_w$Selfharm, TBI_w$Undetermined)
+
+```
+
+#Save the data files for further work
+
+```{r}
+saveRDS(TBI_w, file='data/TBI_w.Rds')
+
+```
+

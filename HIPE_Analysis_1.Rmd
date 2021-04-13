@@ -1,0 +1,249 @@
+---
+title: "HIPE analysis"
+author: "Anthony Staines & Anne O\\'Farrell"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+rm(list = ls())
+library(csodata)
+library(epitools)
+library(lubridate)
+library(gt)
+library(kableExtra)
+library(tidyverse)
+knitr::opts_chunk$set(echo = TRUE,cache = TRUE, message= FALSE, results = 'hide')
+```
+
+# Read in data
+
+```{r}
+TBI_final <- readRDS('data/TBI_final.Rds')
+
+Dictionary <- readRDS('data/Dictionary.Rds')
+
+```
+
+Reorder the E_group by frequency of occurrence
+ 
+```{r}
+
+TBI_final <- TBI_final %>% mutate(E_group.f = fct_infreq(E_group))
+
+```
+
+Get the population
+
+```{r, echo = FALSE}
+Age_LIST <- c('Omit' = 'All ages',
+'0-4' = 'Under 1 year',
+'0-4' = '1 year',
+'0-4' = '2 years',
+'0-4' = '3 years',
+'0-4' = '4 years',
+'5-9' = '5 years',
+'5-9' = '6 years',
+'5-9' = '7 years',
+'5-9' = '8 years',
+'5-9' = '9 years',
+'10-14' = '10 years',
+'10-14' = '11 years',
+'10-14' = '12 years',
+'10-14' = '13 years',
+'10-14' = '14 years',
+'15-19' = '15 years',
+'15-19' = '16 years',
+'15-19' = '17 years',
+'15-19' = '18 years',
+'15-19' = '19 years',
+'20-24' = '20 years',
+'20-24' = '21 years',
+'20-24' = '22 years',
+'20-24' = '23 years',
+'20-24' = '24 years',
+'25-29' = '25 years',
+'25-29' = '26 years',
+'25-29' = '27 years',
+'25-29' = '28 years',
+'25-29' = '29 years',
+'30-34' = '30 years',
+'30-34' = '31 years',
+'30-34' = '32 years',
+'30-34' = '33 years',
+'30-34' = '34 years',
+'35-39' = '35 years',
+'35-39' = '36 years',
+'35-39' = '37 years',
+'35-39' = '38 years',
+'35-39' = '39 years',
+'40-44' = '40 years',
+'40-44' = '41 years',
+'40-44' = '42 years',
+'40-44' = '43 years',
+'40-44' = '44 years',
+'45-49' = '45 years',
+'45-49' = '46 years',
+'45-49' = '47 years',
+'45-49' = '48 years',
+'45-49' = '49 years',
+'50-54' = '50 years',
+'50-54' = '51 years',
+'50-54' = '52 years',
+'50-54' = '53 years',
+'50-54' = '54 years',
+'55-59' = '55 years',
+'55-59' = '56 years',
+'55-59' = '57 years',
+'55-59' = '58 years',
+'55-59' = '59 years',
+'60-64' = '60 years',
+'60-64' = '61 years',
+'60-64' = '62 years',
+'60-64' = '63 years',
+'60-64' = '64 years',
+'65-69' = '65 years',
+'65-69' = '66 years',
+'65-69' = '67 years',
+'65-69' = '68 years',
+'65-69' = '69 years',
+'70-74' = '70 years',
+'70-74' = '71 years',
+'70-74' = '72 years',
+'70-74' = '73 years',
+'70-74' = '74 years',
+'75-79' = '75 years',
+'75-79' = '76 years',
+'75-79' = '77 years',
+'75-79' = '78 years',
+'75-79' = '79 years',
+'80-84' = '80 years',
+'80-84' = '81 years',
+'80-84' = '82 years',
+'80-84' = '83 years',
+'80-84' = '84 years',
+'85-89' = '85 years',
+'85-89' = '86 years',
+'85-89' = '87 years',
+'85-89' = '88 years',
+'85-89' = '89 years',
+'90-94' = '90 years',
+'90-94' = '91 years',
+'90-94' = '92 years',
+'90-94' = '93 years',
+'90-94' = '94 years',
+'95+' = '95 years',
+'95+' = '96 years',
+'95+' = '97 years',
+'95+' = '98 years',
+'95+' = '99 years and over')
+
+```
+
+```{r}
+toc <- cso_get_toc()
+PEA11 <- cso_get_data('PEA11')
+PEA11 <- PEA11 %>%
+  filter(Single.Year.of.Age != 'All ages') %>%
+  filter(Sex != 'Both sexes') %>%
+  mutate(Age_group = Single.Year.of.Age) %>%
+  mutate(Age_group = fct_recode(Age_group, !!!Age_LIST)) %>%
+  mutate(Age_group = fct_drop(Age_group))
+
+
+table(PEA11$Single.Year.of.Age)
+table(PEA11$Age_group)
+table(PEA11$Age_group,PEA11$Single.Year.of.Age)
+str(PEA11)
+str(TBI_final$Age_group)
+
+PEA11 <- PEA11 %>%
+  select(Sex,`2016`,Age_group) %>%
+  group_by(Sex,Age_group) %>% # Add up single years of age.
+  summarise(Pop_2016 = sum(`2016`))
+
+```
+
+# Figure 1
+Stacked bar chart by age and cause
+
+```{r}
+ggplot(data = TBI_final %>% filter(!is.na(E_group)),
+       aes(x = Age_group,
+           group = E_group.f,
+           fill = E_group.f,
+           colour=E_group.f)) +
+  geom_bar(position = 'fill', colour='darkblue') +
+  facet_wrap(~Gender, nrow = 1) +
+  ggtitle('Main external causes of injury by age') +
+  scale_y_continuous(labels =
+                       scales::percent_format(scale = 100)) +
+  scale_fill_brewer(type='qual', palette= 'Paired',
+                    guide_legend(title = 'External\ncause')) +
+  scale_x_discrete() +
+  theme(axis.text.x = element_text(angle = -90))
+
+```
+
+# Figure 2
+Rates by age and sex
+
+```{r}
+TT <- TBI_final %>%
+  group_by(Gender,Age_group) %>%
+  summarise(N = n()) %>%
+  ungroup() %>%
+  left_join(PEA11, by=c('Age_group' = 'Age_group','Gender' = 'Sex')) 
+
+TT <- TT %>%
+  mutate(Rate = 100000 * N/(7.66666*Pop_2016)) %>%
+  mutate(LrCI = 100000 * pois.daly(TT$N,7.66666*TT$Pop_2016)$lower) %>%
+  mutate(UprCI = 100000 * pois.daly(TT$N,7.66666*TT$Pop_2016)$upper) 
+
+
+ggplot(TT,aes(x=Age_group, y=Rate, group=Gender, colour=Gender)) +
+  geom_ribbon(aes(y=Rate, ymin=LrCI, ymax=UprCI),colour='lightgrey', fill='lightgrey', alpha = 0.8) +
+  geom_line() +
+  ggtitle('Rate of TBI by gender', subtitle = 'Approximate 95% confidence intervals') +
+  xlab('Age group') + ylab('Rate per 100,000 per year') +
+  theme(axis.text.x = element_text(angle = -90))
+
+```
+
+# Preparatory tables
+
+```{r}
+library(arsenal)
+Tab1 <- tableby( ~ Admission_type + Admission_source, data=TBI_final)
+
+summary(Tab1, text = TRUE)
+
+
+# Eliminate non-emergency admissions
+TBI_usage <- TBI_final %>%
+  filter(Admission_type == 'Emergency')
+
+# Eliminate transfers too
+TBI_occurrence <- TBI_final %>%
+  filter(Admission_type == 'Emergency' | Admission_type == 'Emergency Readmission') #%>%
+  filter(Admission_source != 'Transfer from Acute Hospital')
+
+```
+
+There are two slightly different questions to be considered. The first is to look at the use of resources for TBI. For this analysis onlyelective admissions, number of events. This requires excluding elective care, transfers and readmissions, elective or planned. The second is to look at resource usage, and this requires further excluding
+
+
+# Table 1
+
+```{r}
+library(arsenal)
+
+
+Tab1 <- tableby(Gender ~ Age_by_1_year, data=TBI_final)
+
+summary(Tab1, text = TRUE)
+```
