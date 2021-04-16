@@ -35,3 +35,9 @@ images
 manuals
 ToBeChecked.csv
 Data_Load.pdf
+#Latex dreck
+*.aux
+*.out
+*.toc
+*.md
+Case selection.Rmd

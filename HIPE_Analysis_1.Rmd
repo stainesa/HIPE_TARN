@@ -17,6 +17,8 @@ library(lubridate)
 library(gt)
 library(kableExtra)
 library(tidyverse)
+library(arsenal)
+
 knitr::opts_chunk$set(echo = TRUE,cache = TRUE, message= FALSE, results = 'hide')
 ```
 
@@ -168,11 +170,31 @@ PEA11 <- PEA11 %>%
 
 ```
 
+
+There are two slightly different questions to be considered. The first is to look at the use of resources for TBI. For this analysis only elective admissions need to be excluded from the number of events. The second is to look at occurrence of events, and this requires excluding elective care, as well as transfers and elective readmissions.
+
+```{r}
+# Eliminate non-emergency admissions
+TBI_usage <- TBI_final %>%
+  filter(Admission_type == 'Emergency')
+
+table(TBI_usage$Detail)
+
+# Eliminate transfers too
+TBI_occurrence <- TBI_final %>%
+  filter(Admission_type == 'Emergency' | Admission_type == 'Emergency Readmission') %>%
+  filter(Admission_source != 'Transfer from Acute Hospital')
+
+table(TBI_occurrence$Detail)
+
+```
+
+
 # Figure 1
 Stacked bar chart by age and cause
 
 ```{r}
-ggplot(data = TBI_final %>% filter(!is.na(E_group)),
+ggplot(data = TBI_occurrence %>% filter(!is.na(E_group)),
        aes(x = Age_group,
            group = E_group.f,
            fill = E_group.f,
@@ -193,16 +215,16 @@ ggplot(data = TBI_final %>% filter(!is.na(E_group)),
 Rates by age and sex
 
 ```{r}
-TT <- TBI_final %>%
-  group_by(Gender,Age_group) %>%
+TT <- TBI_occurrence %>%
+  group_by(Admission_year, Gender,Age_group) %>%
   summarise(N = n()) %>%
   ungroup() %>%
   left_join(PEA11, by=c('Age_group' = 'Age_group','Gender' = 'Sex')) 
 
 TT <- TT %>%
-  mutate(Rate = 100000 * N/(7.66666*Pop_2016)) %>%
-  mutate(LrCI = 100000 * pois.daly(TT$N,7.66666*TT$Pop_2016)$lower) %>%
-  mutate(UprCI = 100000 * pois.daly(TT$N,7.66666*TT$Pop_2016)$upper) 
+  mutate(Rate = 100000 * N/Pop_2016) %>%
+  mutate(LrCI = 100000 * pois.daly(TT$N,TT$Pop_2016)$lower) %>%
+  mutate(UprCI = 100000 * pois.daly(TT$N,TT$Pop_2016)$upper) 
 
 
 ggplot(TT,aes(x=Age_group, y=Rate, group=Gender, colour=Gender)) +
@@ -210,40 +232,69 @@ ggplot(TT,aes(x=Age_group, y=Rate, group=Gender, colour=Gender)) +
   geom_line() +
   ggtitle('Rate of TBI by gender', subtitle = 'Approximate 95% confidence intervals') +
   xlab('Age group') + ylab('Rate per 100,000 per year') +
-  theme(axis.text.x = element_text(angle = -90))
+  theme(axis.text.x = element_text(angle = -90)) +
+  facet_wrap(~Admission_year)
 
 ```
 
 # Preparatory tables
 
 ```{r}
-library(arsenal)
-Tab1 <- tableby( ~ Admission_type + Admission_source, data=TBI_final)
+Tab1 <- tableby( ~ Admission_type + Admission_source, data=TBI_occurrence)
 
 summary(Tab1, text = TRUE)
-
-
-# Eliminate non-emergency admissions
-TBI_usage <- TBI_final %>%
-  filter(Admission_type == 'Emergency')
-
-# Eliminate transfers too
-TBI_occurrence <- TBI_final %>%
-  filter(Admission_type == 'Emergency' | Admission_type == 'Emergency Readmission') #%>%
-  filter(Admission_source != 'Transfer from Acute Hospital')
-
 ```
-
-There are two slightly different questions to be considered. The first is to look at the use of resources for TBI. For this analysis onlyelective admissions, number of events. This requires excluding elective care, transfers and readmissions, elective or planned. The second is to look at resource usage, and this requires further excluding
-
 
 # Table 1
 
-```{r}
-library(arsenal)
+```{r, results="asis"}
+TBI_occurrence <- TBI_occurrence %>%
+  mutate(DrugUse = as.numeric(Drug)) %>%
+  mutate(AlcoholUse = as.numeric(Alcohol))
+  
+CONTROL <- tableby.control(numeric.stats = 'meansd')
 
-
-Tab1 <- tableby(Gender ~ Age_by_1_year, data=TBI_final)
+Tab1 <- tableby(Gender ~ Age_by_1_year + LOS_total + ITU_or_CCU_bed_days + DrugUse + AlcoholUse, data=TBI_occurrence, control = CONTROL)
 
 summary(Tab1, text = TRUE)
+```
+
+```{r}
+Daily_Admissions <- TBI_occurrence %>%
+  select(Admission_date) %>%
+  mutate(Day_of_week = wday(Admission_date,
+                            label = TRUE))  %>%
+  mutate(Weekend = ifelse((Day_of_week %in% c('Sat','Sun')), TRUE, FALSE))
+
+Daily_Admissions %>%
+  group_by(Day_of_week) %>%
+  summarise(N = n())
+
+Daily_Admissions %>%
+  summarise(N = n())
+
+ggplot(Daily_Admissions %>%
+         group_by(Weekend, Day_of_week, Admission_date) %>%
+         summarise(N = n()),
+       aes(x=Admission_date, y=N)) +
+  geom_point(alpha=0.7, aes(colour=Day_of_week, fill = Day_of_week)) +
+  geom_smooth( method = "gam", formula = y ~ s(x, k=20, bs = "cs"))  +
+#  geom_line(alpha=0.25,colour='darkblue') +
+  scale_x_date(date_minor_breaks='3 months',
+               date_breaks = '1 year',
+               date_labels = '%b-%Y',
+               limits = c(as_date('2013-01-01'),NA)) +
+  scale_colour_viridis_d() +
+  scale_fill_viridis_d() +
+  theme_minimal() +
+  ggtitle('Daily admissions 2013-2020', subtitle = 'HIPE data') +
+  xlab('Date of admission') + ylab('Number of admissions')
+
+ggplot(Daily_Admissions, aes(x=Day_of_week)) +
+  geom_bar(aes(fill=Day_of_week)) +
+  scale_fill_viridis_d() +
+  theme_minimal()
+
+
+rm(Daily_Admissions)
 ```

@@ -49,12 +49,10 @@ TBI <- TBI %>% rbind(D2018_revised) # Add 5073 missed from 2018 before.
 
 nrow(TBI) #100515
 nrow(distinct(TBI)) # SAME
-#UniqueID
-TBI$ID = 1:nrow(TBI)
-names(TBI)
 
-rm(D2013,D2014,D2015,D2016,D2017,D2019,D2020)
-rm(D2018_original, D2018_revised)
+
+#rm(D2013,D2014,D2015,D2016,D2017,D2019,D2020)
+#rm(D2018_original, D2018_revised)
 ```
 
 # Data
@@ -72,7 +70,8 @@ NAMES <- as_tibble(names(TBI))
 NAMES %>% write_csv('data/names.csv') # Manually altered
 NAMES <- read_csv('data/names_revised.csv')# %>% select(-X1)
 
-names(TBI) <- NAMES$NewName  
+names(TBI) <- NAMES$NewName
+glimpse(TBI)
 ```
 
 Fix the variable types
@@ -104,6 +103,9 @@ rm(TBIt, COLS, NAMES)
 # Add new variables
 
 ```{r AddNew}
+#UniqueID
+TBI$ID = 1:nrow(TBI)
+
 #Correctly ordered age groups
 TBI <- TBI %>%
   mutate(Age_group = as_factor(Age_by_5_year)) %>%
@@ -118,8 +120,16 @@ table(TBI$Age_group)
 #  mutate(Age_group = fct_relevel(Age_group, "100-104", after=Inf)) #
 
 TBI %>% select(Age_group) %>% group_by(Age_group) %>% summarise(N = n())
+```
 
-TBI <- TBI %>% select(ID,SOURCE,E_MRN:Age_group)
+```{r CHECKID, results = 'show'}
+names(TBI)
+table(TBI$SOURCE)
+head(TBI$ID)
+
+```
+```{r}
+TBI <- TBI %>% dplyr::select(ID,SOURCE,E_MRN:Readm_info,Age_group)
 
 ```
 
@@ -218,17 +228,11 @@ ggplot(Daily_Admissions, aes(x=Admission_date, y=N)) +
 rm(Daily_Admissions)
 ```
 
-Something very different in 2018
-
-Small gap in late 2018 - only given up to December 1st
-
-Sharp dip in March 2020 - COVID1
-
 This is all head injuries.
 
 # Dictionary of codes
 
-This is set of all the ICD10 codes used in the data which were associated with names. Some of these are blank and were filled in form where they were given in the dataset, some completed from the US codes and a few were completed manually.
+This is set of all the ICD10 codes used in the data which were associated with names. Some of these are blank and were filled in from where they were given in the dataset, some completed from the US codes and a few were completed manually.
 
 ```{r}
 Dictionary <- TBI %>%
@@ -245,43 +249,12 @@ Dictionary <- TBI %>%
 
 ```
 
-# Codes used
+# ICD-10 Codes used
 
-```{r, results = 'show'}
 
-# Codes used and the number of the associated diagnosis
-Codes_used_by_Dx <- TBI %>%
-  select(ID,Dx_1_ICD_code:Dx_30_ICD_code) %>%  #All diagnoses
-  pivot_longer(-ID,
-               names_to=c("Dx","Type"),
-               names_pattern="(Dx_\\d+)_(.*)",
-               values_to="Code") %>% # Generate one row per diagnosis
-  select(-Type) %>% # This just says ICD_code
-  filter(!is.na(Code)) %>% # Lose blank codes
-  left_join(Dictionary, by = c('Code' = 'ICD_code')) %>%
-  group_by(Dx,Code,ICD_name) %>% # Group by diagnosis, and code
-  summarize(N=n()) %>% # Count every combination of diagnosis and code
-  arrange(desc(N)) # Put from most common to least common
+## Codes used for diagnosis 1 only
 
-Codes_used_by_Dx
-
-# Codes used for all diagnoses
-Codes_used_all_Dx <- TBI %>%
-  select(ID,Dx_1_ICD_code:Dx_30_ICD_code) %>%  #All diagnoses
-  pivot_longer(-ID,
-               names_to=c("Dx","Type"),
-               names_pattern="(Dx_\\d+)_(.*)",
-               values_to="Code") %>% # Generate one row per diagnosis
-  select(-Type) %>% # This just says ICD_code
-  filter(!is.na(Code)) %>% # Lose blank codes
-  left_join(Dictionary, by = c('Code' = 'ICD_code')) %>%
-  group_by(Code,ICD_name) %>% # Group by code
-  summarize(N=n()) %>% # Count every code used for any diagnosis
-  arrange(desc(N)) # Put from most common to least common
-
-Codes_used_all_Dx
-
-#Codes used for diagnosis 1 only
+```{r, results='asis'}
 Codes_used_Dx_1 <- TBI %>%
   select(ID,Dx_1_ICD_code) %>%  #Principal diagnosis
   pivot_longer(-ID,
@@ -295,8 +268,54 @@ Codes_used_Dx_1 <- TBI %>%
   summarize(N=n()) %>% # Count every code for principal diagnosis
   arrange(desc(N)) # Put from most common to least common
 
-Codes_used_Dx_1
+pander::pander(head(Codes_used_Dx_1,n=10))
+```
 
+The commonest code used in the first diagnosis was 'Unspecified injury of head', with  'Open wound of other parts of the head', 'Fracture of nasal bones' and 'Other specified injuries of head' roughly equally common.
+
+## Codes used for all diagnoses
+
+```{r, results='asis'}
+Codes_used_all_Dx <- TBI %>%
+  select(ID,Dx_1_ICD_code:Dx_30_ICD_code) %>%  #All diagnoses
+  pivot_longer(-ID,
+               names_to=c("Dx","Type"),
+               names_pattern="(Dx_\\d+)_(.*)",
+               values_to="Code") %>% # Generate one row per diagnosis
+  select(-Type) %>% # This just says ICD_code
+  filter(!is.na(Code)) %>% # Lose blank codes
+  left_join(Dictionary, by = c('Code' = 'ICD_code')) %>%
+  group_by(Code,ICD_name) %>% # Group by code
+  summarize(N=n()) %>% # Count every code used for any diagnosis
+  arrange(desc(N)) # Put from most common to least common
+
+pander::pander(head(Codes_used_all_Dx,n=10))
+```
+
+Across all diagnoses, the commonest codes used were 'Unspecified activity', 'Unspecified place of occurrence' and 'Unspecified fall', suggesting that in many medical records these data were not given.
+
+## Codes used and the number of the associated diagnosis
+
+```{r, results='asis'}
+Codes_used_by_Dx <- TBI %>%
+  select(ID,Dx_1_ICD_code:Dx_30_ICD_code) %>%  #All diagnoses
+  pivot_longer(-ID,
+               names_to=c("Dx","Type"),
+               names_pattern="(Dx_\\d+)_(.*)",
+               values_to="Code") %>% # Generate one row per diagnosis
+  select(-Type) %>% # This just says ICD_code
+  filter(!is.na(Code)) %>% # Lose blank codes
+  left_join(Dictionary, by = c('Code' = 'ICD_code')) %>%
+  group_by(Dx,Code,ICD_name) %>% # Group by diagnosis, and code
+  summarize(N=n()) %>% # Count every combination of diagnosis and code
+  arrange(desc(N)) # Put from most common to least common
+
+pander::pander(head(Codes_used_by_Dx, n=10))
+```
+
+This analysis by diagnosis number and code suggests that these very common codes were, as would be expected, subsidiary codes. Only 'Unspecified injury of head' 'Open wound of other parts of head' and 'Fracture of nasal bones' were common first diagnoses in this set.
+
+```{r}
 rm(Codes_used_all_Dx, Codes_used_by_Dx, Codes_used_Dx_1)
 ```
 

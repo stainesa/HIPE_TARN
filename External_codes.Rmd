@@ -3,7 +3,8 @@ title: "External codes"
 author: "Anthony Staines & Anne O'Farrell"
 date: "`r Sys.Date()`"
 output:
-  pdf_document: default
+  pdf_document: 
+    latex_engine: xelatex
   html_document: default
 editor_options:
   chunk_output_type: console
@@ -11,7 +12,7 @@ editor_options:
 
 # Process external codes
 
-This files prepares the dictionary linking e-codes to the main groups used for analysis.
+This file prepares the dictionary and the set of binary variables linking e-codes to the main groups used for analysis.
 
 ```{r setup, include=FALSE}
 rm(list = ls())
