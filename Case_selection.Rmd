@@ -455,7 +455,6 @@ summary(tableby(External ~ Skull + IC_injury, data=TBI_final, test=FALSE, total=
 
 ```
 
-
 #Save the data files for further work
 
 ```{r}
