@@ -42,17 +42,24 @@ TBI <- D2020 %>% rbind(D2019) %>% rbind(D2018_original) %>% rbind(D2017) %>% rbi
 
 nrow(TBI) #95422
 nrow(distinct(TBI)) # SAME
+nrow(distinct(TBI %>% select(-SOURCE))) # 93346
 
-#TBI <- TBI %>% distinct() #Some dates overlap 2019 and part 2020
+nrow(distinct(TBI)) -nrow(distinct(TBI %>% select(-SOURCE))) # 2096 from 2019 October - December.
 
 TBI <- TBI %>% rbind(D2018_revised) # Add 5073 missed from 2018 before.
 
 nrow(TBI) #100515
 nrow(distinct(TBI)) # SAME
+nrow(distinct(TBI %>% select(-SOURCE))) # 98419
 
+nrow(distinct(TBI)) - nrow(distinct(TBI %>% select(-SOURCE))) # 2096 from 2019 October - December No extras from 2018
 
-#rm(D2013,D2014,D2015,D2016,D2017,D2019,D2020)
-#rm(D2018_original, D2018_revised)
+TBI <- TBI %>% distinct(across(1:173), .keep_all = TRUE) #Some dates overlap 2019 and part 2020
+names(TBI) # Last one is SOURCE
+nrow(TBI) # 98419
+
+rm(D2013,D2014,D2015,D2016,D2017,D2019,D2020)
+rm(D2018_original, D2018_revised)
 ```
 
 # Data
@@ -70,7 +77,7 @@ NAMES <- as_tibble(names(TBI))
 NAMES %>% write_csv('data/names.csv') # Manually altered
 NAMES <- read_csv('data/names_revised.csv')# %>% select(-X1)
 
-names(TBI) <- NAMES$NewName
+names(TBI) <- NAMES$NewName # 174 names
 glimpse(TBI)
 ```
 
@@ -126,10 +133,16 @@ TBI %>% select(Age_group) %>% group_by(Age_group) %>% summarise(N = n())
 names(TBI)
 table(TBI$SOURCE)
 head(TBI$ID)
+#Lots of Repeated MRNs
+TBI %>% group_by(E_MRN) %>% summarise(Count = n()) %>% filter(Count > 1) %>% summarise(N=n())
+TBI %>% group_by(SOURCE,E_MRN) %>% summarise(Count = n()) %>% filter(Count > 1) %>% summarise(N=n())
+TBI %>% group_by(ID) %>% summarise(Count = n()) %>% filter(Count > 1) %>% summarise(N=n())
 
 ```
-```{r}
+
+```{r REORDER}
 TBI <- TBI %>% dplyr::select(ID,SOURCE,E_MRN:Readm_info,Age_group)
+
 
 ```
 
@@ -222,13 +235,22 @@ ggplot(Daily_Admissions, aes(x=Admission_date, y=N)) +
   geom_smooth( method = "gam", formula = y ~ s(x, k=20, bs = "cs"))  +
   geom_line(alpha=0.2,colour='blue') +
   scale_colour_manual(values=c('lightblue','yellow')) +
-  scale_x_date(date_minor_breaks='1 month', date_breaks = '3 months', date_labels = '%b-%y', limits = c(as_date('2013-01-01'),NA)  )
+  scale_x_date(date_minor_breaks='1 month',
+               date_breaks = '3 months',
+               date_labels = '%b-%y') +
+  labs(title = 'Count of daily admissions for ICD-10 codes S00 - S99',
+       subtitle = 'GAM smooth added',
+       x = 'Admission date',
+       y = 'Cases per day',
+       caption='Source HIPE data') +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = -90))
 
 
 rm(Daily_Admissions)
 ```
 
-This is all head injuries.
+This is all head injuries with codes in S00 to S99.
 
 # Dictionary of codes
 
@@ -245,7 +267,7 @@ Dictionary <- TBI %>%
   filter(!is.na(ICD_code)) %>% # Lose blank codes
   distinct(ICD_code,ICD_name) %>%
   mutate(Name_missing = is.na(ICD_name)) %>%
-  mutate(Source = ifelse(Name_missing, NA, 'HIPE'))
+  mutate(Data_source = ifelse(Name_missing, NA, 'HIPE'))
 
 ```
 
@@ -328,7 +350,7 @@ Each row is one diagnosis for one HIPE episode. Patients with many diagnoses hav
 
 ```{r}
 TBI_l <- TBI %>%
-  select(ID,E_MRN,Hospital_name,starts_with('Dx')) %>%
+  select(ID,E_MRN,SOURCE,Hospital_name,starts_with('Dx')) %>%
   pivot_longer(cols = c(Dx_1_ICD_code:Dx_30_ICD_code,
          Dx_1_ICD_name:Dx_30_ICD_name),
                names_to=c("Dx",".value"),

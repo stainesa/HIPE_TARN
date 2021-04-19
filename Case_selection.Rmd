@@ -59,7 +59,7 @@ Pozzato I, Tate RL, Rosenkoetter U, Cameron ID. Epidemiology of hospitalised tra
 
 The primary selection was that all records with any code in S00 to S99 were included.
 
-Focussing further on these, and following Pazzato et al. we focus on people with a skull fracture, a recorded intracranial injury, or a crush injury to the head. All cases with one or more of these codes, where an external cause of injury was coded were included. This gives us `r TBI_w %>% filter((Skull | IC_injury) & External)  %>% summarize(N=n())` cases immediately eligible.
+Focussing further on these, and following Pazzato et al. we focus on people with a skull fracture, a recorded intracranial injury, or a crush injury to the head. All cases with one or more of these codes, where an external cause of injury was coded were included. This gives us `r TBI_w %>% filter((Skull | IC_injury) & External)  %>% summarize(N=n()) #25958` cases immediately eligible.
 
 ```{r, results = 'asis'}
 T1 <- tableby(External ~ Skull + IC_injury, data=TBI_w, test=FALSE, total=FALSE)
@@ -70,41 +70,68 @@ T1 <- tableby(External ~ Skull + IC_injury, data=TBI_w, test=FALSE, total=FALSE)
 Breaking these down more explicitly we get this :-
 
 ```{r, results = 'show'}
-TBI_w %>% filter(Skull )  %>% summarize(N=n())
-TBI_w %>% filter(IC_injury)  %>% summarize(N=n())
+TBI_w %>% filter(Skull )  %>% summarize(N=n()) # 6676
+TBI_w %>% filter(IC_injury)  %>% summarize(N=n()) # 25154
 
-TBI_w %>% filter(Skull & IC_injury)  %>% summarize(N=n())
-TBI_w %>% filter(Skull | IC_injury)  %>% summarize(N=n())
+TBI_w %>% filter(Skull & IC_injury)  %>% summarize(N=n()) # 3979
+TBI_w %>% filter(Skull | IC_injury)  %>% summarize(N=n()) # 27851
 
-TBI_w %>% filter((Skull | IC_injury) & External)  %>% summarize(N=n()) # These are our key group
+TBI_w %>% filter((Skull | IC_injury) & External)  %>% summarize(N=n()) # 25958 These are our key group 
 
-TBI_w %>% filter((Skull) & !External)  %>% summarize(N=n()) # These have no external cause identified.
-TBI_w %>% filter((IC_injury) & !External)  %>% summarize(N=n()) # These have no external cause identified.
-TBI_w %>% filter((Skull & IC_injury) & !External)  %>% summarize(N=n()) # These have no external cause identified.
-TBI_w %>% filter((Skull | IC_injury) & !External)  %>% summarize(N=n()) # These have no external cause identified.
+TBI_w %>% filter((Skull) & !External)  %>% summarize(N=n()) # 340 These have no external cause identified.
+TBI_w %>% filter((IC_injury) & !External)  %>% summarize(N=n()) # 1730 These also have no external cause identified.
+TBI_w %>% filter((Skull & IC_injury) & !External)  %>% summarize(N=n()) # 177 These have no external cause identified.
+TBI_w %>% filter((Skull | IC_injury) & !External)  %>% summarize(N=n()) # 1893 These have no external cause identified.
 ```
 
-## Check 1 LOC
+There are a number of sets of cases for whom it is appropriate to carry out a manual review. The aim of this review is, within the limits imposed by the available data, to identify possible additional TBI cases. When reviewing all classifications of cases were reviewed, and all the recorded ICD codes were inspected.
 
-The first group for manual review are those with LOC recorded, but no External cause.
+## Check 1 Loss of consciousness and/or post-traumatic amnesia.
+
+The first group for manual review are those with LOC/PTA recorded, but no External cause given.
+
 
 ```{r}
-TBI_w %>% filter((LOC | PTA) & External)  %>% summarize(N=n())
-TBI_w %>% filter((Skull | IC_injury)) %>% filter((LOC | PTA))  %>% summarize(N=n()) 
+TBI_w %>% filter((LOC | PTA))  %>% summarize(N=n()) # 12106 with LOC/PTA
+TBI_w %>% filter((LOC | PTA) & External)  %>% summarize(N=n()) # 11091 with LOC/PTA
+TBI_w %>% filter((LOC | PTA) & !External)  %>% summarize(N=n()) # 1015 with LOC/PTA and no external
+```
 
-TBI_w %>% filter((Skull | IC_injury)) %>% filter((LOC | PTA)) %>% filter(External)  %>% summarize(N=n()) # These have an external cause identified.
-TBI_w %>% filter((Skull | IC_injury)) %>% filter((LOC | PTA)) %>% filter(!External)  %>% summarize(N=n()) # These have no external cause identified.
+There are a total of `r TBI_w %>% filter((LOC | PTA))  %>% summarize(N=n()) # 12109` cases with loss of consciousness and/or PTA recorded. Of these `r TBI_w %>% filter((LOC | PTA) & External)  %>% summarize(N=n()) # 11094` have an external cause recorded and only `r TBI_w %>% filter((LOC | PTA) & !External)  %>% summarize(N=n()) # 1015` do not.
 
-TBI_w %>% filter((LOC | PTA) & External)  %>% summarize(N=n()) # 11312
-TBI_w %>% filter((LOC | PTA) & !External)  %>% summarize(N=n()) # 1047 No external cause given
-TBI_w %>% filter((LOC | PTA) & !External & Undetermined)  %>% summarize(N=n()) # 17 Undetermined intent
-TBI_w %>% filter((LOC | PTA) & !External & Selfharm)  %>% summarize(N=n()) # 48 Self harm
 
-TBI_w %>% filter((LOC | PTA) & !External & !Selfharm)  %>% summarize(N=n()) # 999
-TBI_w %>% filter((LOC | PTA) & !External & !Selfharm & !Undetermined)  %>% summarize(N=n()) # 982
-TBI_w %>% filter((LOC | PTA) & !External & !Selfharm & !Undetermined & !Syncope)  %>% summarize(N=n()) # 625
-TBI_w %>% filter((LOC | PTA) & !External & !Selfharm & !Undetermined & !Syncope & !(Skull | IC_injury))  %>% summarize(N=n()) # 4
+```{r}
+TBI_w %>% filter((LOC | PTA)) %>% filter((Skull | IC_injury))  %>% summarize(N=n()) # 11976 with a reported skull or intracranial injury and LOC/PTA
 
+TBI_w %>% filter((LOC | PTA)) %>% filter((Skull | IC_injury))  %>% filter(External)  %>% summarize(N=n()) # These 10964 have an external cause identified.
+TBI_w %>% filter((LOC | PTA)) %>% filter((Skull | IC_injury)) %>% filter(!External)  %>% summarize(N=n()) # These 1012 have no external cause identified.
+
+```
+
+Of those with LOC/PTA recorded, the large majority, `r TBI_w %>% filter((LOC | PTA)) %>% filter((Skull | IC_injury))  %>% summarize(N=n()) # 11979` also have a reported skull or intra-cranial injury. Most of these, `r TBI_w %>% filter((LOC | PTA)) %>% filter((Skull | IC_injury))  %>% filter(External)  %>% summarize(N=n()) #10967` have an external cause coded. Only `r TBI_w %>% filter((LOC | PTA)) %>% filter((Skull | IC_injury)) %>% filter(!External)  %>% summarize(N=n()) #1012` do not.
+
+```{r}
+TBI_w %>% filter((LOC | PTA) & External)  %>% summarize(N=n()) # 11091 External cause given
+TBI_w %>% filter((LOC | PTA) & !External)  %>% summarize(N=n()) # 1015 No external cause given
+
+TBI_w %>% filter((LOC | PTA) & !External & Undetermined)  %>% summarize(N=n()) # 16 Undetermined intent
+TBI_w %>% filter((LOC | PTA) & !External & Assaults)  %>% summarize(N=n()) # 0 Assaults
+TBI_w %>% filter((LOC | PTA) & !External & Selfharm)  %>% summarize(N=n()) # 46 Self harm
+TBI_w %>% filter((LOC | PTA) & !External & Syncope)  %>% summarize(N=n()) # 352 Syncope
+
+TBI_w %>% filter((LOC | PTA) & !External & !Selfharm)  %>% summarize(N=n()) # 969
+TBI_w %>% filter((LOC | PTA) & !External & !Selfharm & !Undetermined)  %>% summarize(N=n()) # 934
+TBI_w %>% filter((LOC | PTA) & !External & !Selfharm & !Undetermined & !Syncope)  %>% summarize(N=n()) # 591
+
+TBI_w %>% filter((LOC | PTA) & !External & !Selfharm & !Undetermined & !Syncope & !(Skull | IC_injury))  %>% summarize(N=n()) # 3
+```
+
+Of the `r TBI_w %>% filter((LOC | PTA)) %>% filter((Skull | IC_injury)) %>% filter(!External)  %>% summarize(N=n()) #1012` with no external cause given, these can be further broken down. Only `r TBI_w %>% filter((LOC | PTA) & !External & Undetermined)  %>% summarize(N=n()) # 16` are recorded as undetermined intent, while `r TBI_w %>% filter((LOC | PTA) & !External & Selfharm)  %>% summarize(N=n()) # 46` are recorded as self harm. Quite a lot of these cases `r TBI_w %>% filter((LOC | PTA) & !External & Syncope)  %>% summarize(N=n()) # 352 ` are coded as syncope. These three groups were not considered further.
+
+Of the remainder, only `r TBI_w %>% filter((LOC | PTA) & !External & !Selfharm & !Undetermined & !Syncope & !(Skull | IC_injury))  %>% summarize(N=n()) # 3` were not also coded as Skull fracture or intra-cranial injury. Accordingly all `r TBI_w %>% filter((LOC | PTA) & !External & !Selfharm & !Undetermined & !Syncope)  %>% summarize(N=n()) # 609` were separated out for manual review.
+
+
+```{r}
 # A check file is prepared
 # These have LOC/PTA but no external cause given, and no indication of intent or syncope
 ToBeChecked1 <- TBI_w %>% filter((LOC | PTA) & !External & !Selfharm & !Undetermined & ! Syncope)  %>% #summarize(N=n())
@@ -117,27 +144,33 @@ ToBeChecked1 %>% filter(Proc_1_name_RCs != 'No proc 1') %>% summarize(N= n()) # 
 write_csv(ToBeChecked1,'data/ToBeChecked1.csv')
 ```
 
+These cases covered a wide range of procedure codes.
 
 ```{r, results = 'asis'}
 
-pander::pander(ToBeChecked1 %>% group_by(Proc_1_group_RCs) %>% summarize(N= n()) %>% arrange(desc(N)) %>% print(n = Inf))
+pander::pander(ToBeChecked1 %>% group_by(Proc_1_group_RCs) %>% summarize(N= n()) %>% arrange(desc(N)))
 ```
 
 #Read back in the manually amended files.
 
-These `r length(ToBeChecked1$ID)` cases, where there is no external code identified, but there is either LOC, or PTA, or bothm are to be manually reviewed to identify missed TBI cases.
+These `r length(ToBeChecked1$ID) #591` cases, where there is no external code identified, but there is either LOC, or PTA, or both were to be manually reviewed to identify missed TBI cases.
 
 ```{r}
-ToBeCheckedRevised1 <- readxl::read_xlsx('data/ToBeCheckedRevised1.xlsx')
+ToBeCheckedRevised1 <- readxl::read_xlsx('data/ToBeCheckedRevised1.xlsx',
+                                         sheet = 'ToBeCheckedRevised1') # 591
+glimpse(ToBeCheckedRevised1)
 Note1 <- ToBeCheckedRevised1 %>% select(ID,E_MRN, Manual_check, Note, Detail, External_detail) %>%
   mutate(Detail_lump = fct_lump_n(Detail,6))
 
+Note1 %>%
+  anti_join(TBI_w,  by = c("E_MRN"))
 TBI_w <- TBI_w %>%
   left_join(Note1,  by = c("ID", "E_MRN"))
 
 ```
 
-The cases of loss-of-consciousness without an external cause given were manually reviewed. They fell into several distinct groups. There were `r ToBeChecked1 %>% filter(Proc_1_name_RCs != 'No proc 1') %>% summarize(N= n())` who had had a procedure of some kind, and `r ToBeChecked1 %>% filter(Proc_1_name_RCs == 'No proc 1') %>% summarize(N= n())` who had not. The range of procedures involved was very wide, but the two largest groups were 'No procedure', and 'Allied health interventions'.
+For each case reviewed, a decision was made as to whether it fitted in the category of Trauma, the more specific category of Brain Injury, some other identifiable likely cause of loss-of-consciousness (Other), or whether it could not be reasonably determined, based on the data provided, what this was (Unknown). Cases identified as brain injury were further classified as TBI or Other. For example a discharge coded as Drowning but with a recorded cerebral contusion was coded as not a TBI. Cases identified as Other were further coded is there was a likely cause coded, which could explain the loss-of-consciousness. Examples included sepsis, seizures, or a cardiac arrythmia. For cases identified as possible TBI or Trauma, all the codes given were inspected to see if any indication of an external cause was given. The commonest of these was the location of the injury, and these were recorded.
+
 
 ```{r, results = 'asis'}
 pander::pander(table(Note1$Note))
@@ -149,7 +182,7 @@ On manual checking they fell into 4 groups, as shown in the table. A small numbe
 pander::pander(table(Note1$Detail_lump))
 ```
 
-Many had a code recorded, for example, epilepsy, cardiac arrythmia, stroke, or acute MI, which seemed likely to explain their LOC. A proportion had other trauma, often a purely facial trauma, a nasal fracture, or a fractured jaw or tooth.
+Many had a code recorded, for example, epilepsy, cardiac arrythmia, stroke, or acute MI, which seemed likely to explain their LOC. A proportion had had other trauma, often a purely facial trauma, a nasal fracture, or a fractured jaw or tooth.
 
 ```{r, results = 'asis'}
 pander::pander(table(Note1$External_detail))
@@ -157,30 +190,60 @@ pander::pander(table(Note1$External_detail))
 
 Very few had any component of external causes recorded. In some cases there was an indication of the location or the setting for the event.
 
-
 ## Check 2 Skull fracture or Intracranial injury recorded
 
-The second set of cases for further consideration as to eligibility, or otherwise, are those where there is no external code, but where either a Skull fracture (n = `r TBI_w %>% filter(Skull & !External) %>% summarize(N=n())`), an intra-cranial injury (n = `r TBI_w %>% filter(IC_injury & !External) %>% summarize(N=n())`, or both (n = `r TBI_w %>% filter((Skull & IC_injury) & !External) %>% summarize(N=n())`), is recorded. This gives us a total of `r TBI_w %>% filter((Skull | IC_injury) & !External)  %>% summarize(N=n())` cases to be considered.
+The second set of cases for further consideration as to eligibility, or otherwise, are those where there is no external code, but where either a Skull fracture, an intra-cranial injury, or both is recorded.
 
-There are `r TBI_w %>% filter((Skull | IC_injury) & !External & Selfharm)  %>% summarize(N=n())` cases with codes recording self harm. 
-There are `r TBI_w %>% filter((Skull | IC_injury) & !External & !Selfharm & Syncope)  %>% summarize(N=n())` cases with codes recording syncope. 
-There are `r TBI_w %>% filter((Skull | IC_injury) & !External & !Selfharm & !is.na(Note))  %>% summarize(N=n())` cases with codes which have already been manually checked examined in the previous section. 
-
-There are `r TBI_w %>% filter((Skull | IC_injury) & !External & !Selfharm & is.na(Note))  %>% summarize(N=n())` cases with codes which have not already been manually checked as outlined in the previous section. 
 
 ```{r}
-TBI_w %>% filter((Skull | IC_injury) & !External & Selfharm)  %>% summarize(N=n()) # 170
+TBI_w %>% filter(Skull) %>% summarize(N=n()) # 6676
+TBI_w %>% filter(IC_injury) %>% summarize(N=n()) # 25154
+TBI_w %>% filter((Skull & IC_injury))  %>% summarize(N=n()) # 3979
+TBI_w %>% filter((Skull | IC_injury))  %>% summarize(N=n()) # 27851
+
+TBI_w %>% filter(Skull & !External) %>% summarize(N=n()) # 340
+TBI_w %>% filter(IC_injury & !External) %>% summarize(N=n()) # 1730
+
+TBI_w %>% filter((Skull | IC_injury) & External)  %>% summarize(N=n()) # 25958
+TBI_w %>% filter((Skull | IC_injury) & !External)  %>% summarize(N=n()) # 1893
+```
+
+There were `r TBI_w %>% filter(Skull) %>% summarize(N=n()) # 6676` records with a skull fracture recorded, and `r TBI_w %>% filter(IC_injury) %>% summarize(N=n()) # 25154` with an intracranial injury recorded. A total of `r TBI_w %>% filter((Skull | IC_injury))  %>% summarize(N=n()) # 27851` had one or other or both of these codes.
+
+Of these the large majority `r TBI_w %>% filter((Skull | IC_injury) & External)  %>% summarize(N=n()) # 25958` had an external cause of injury coded, and only `r TBI_w %>% filter((Skull | IC_injury) & !External)  %>% summarize(N=n()) # 1893` did not.
+
+
+```{r}
+TBI_w %>% filter((Skull | IC_injury) & !External & Selfharm)  %>% summarize(N=n()) # 166
+TBI_w %>% filter((Skull | IC_injury) & !External & Undetermined)  %>% summarize(N=n()) # 66
 TBI_w %>% filter((Skull | IC_injury) & !External & Assaults)  %>% summarize(N=n()) # 0
-TBI_w %>% filter((Skull | IC_injury) & !External & !Assaults & !Selfharm)  %>% summarize(N=n()) # 1775
-TBI_w %>% filter((Skull | IC_injury) & !External & !Assaults & !Selfharm & !Syncope)  %>% summarize(N=n()) # 1388
-TBI_w %>% filter((Skull | IC_injury) & !External & !Assaults & !Selfharm & !is.na(Note))  %>% summarize(N=n()) # 551
-TBI_w %>% filter((Skull | IC_injury) & !External & !Assaults & !Selfharm & is.na(Note))  %>% summarize(N=n()) # 1224
-TBI_w %>% filter((Skull | IC_injury) & !External & !Assaults & !Selfharm & !Syncope & !is.na(Note))  %>% summarize(N=n()) # 551
-TBI_w %>% filter((Skull | IC_injury) & !External & !Assaults & !Selfharm & !Syncope & is.na(Note))  %>% summarize(N=n()) # 837
+TBI_w %>% filter((Skull | IC_injury) & !External & Syncope)  %>% summarize(N=n()) # 377
+
+
+TBI_w %>% filter((Skull | IC_injury) & !External & !is.na(Note))  %>% summarize(N=n()) # 588
+TBI_w %>% filter((Skull | IC_injury) & !External & is.na(Note))  %>% summarize(N=n()) # 1305
+```
+
+Of these, `r TBI_w %>% filter((Skull | IC_injury) & !External & Selfharm)  %>% summarize(N=n()) # 166` were coded as self harm, only `r TBI_w %>% filter((Skull | IC_injury) & !External & Undetermined)  %>% summarize(N=n()) # 39` were coded as undetermined, and `r TBI_w %>% filter((Skull | IC_injury) & !External & Syncope)  %>% summarize(N=n()) # 377` were coded as syncope.
+`
+There are `r TBI_w %>% filter((Skull | IC_injury) & !External & !is.na(Note))  %>% summarize(N=n())` cases with codes which have already been manually checked, as described in the previous section.
+
+There are `r TBI_w %>% filter((Skull | IC_injury) & !External & !Selfharm & is.na(Note))  %>% summarize(N=n())` cases with codes which have not already been manually checked as outlined in the previous section.
+
+```{r}
+TBI_w %>% filter((Skull | IC_injury) & !External & !Assaults & !Selfharm & !Syncope & is.na(Note)) %>% summarise(N=n()) # 765
+TBI_w %>% filter((Skull | IC_injury) & !External & !Assaults & !Selfharm & !Syncope) %>% summarise(N=n()) # 1353
+
+TBI_w %>% filter((Skull | IC_injury) & !External & is.na(Note)) %>% summarise(N=n()) # 1305
+TBI_w %>% filter((Skull | IC_injury) & !External & !is.na(Note)) %>% summarise(N=n()) # 588
+
+```
+
+```{r}
 
 # A check file is prepared
 ToBeChecked2 <- TBI_w %>% filter((Skull | IC_injury) & !External & !Assaults & !Selfharm & !Syncope & is.na(Note))  %>%
-  select(ID:PTAn,Dx_1_name_CCS_IM, Dx_1_group_CCS_IM, Proc_1_ACHI_code, Proc_1_ACHI_name, Proc_1_group_RCs, Proc_1_name_RCs, Manual_check, Note, Detail, External, DRG_name, DRG_code, ICD_name_Dx_1:ICD_name_Dx_30, ICD_code_Dx_1:ICD_code_Dx_30)
+  select(ID:PTAn,Dx_1_name_CCS_IM, Dx_1_group_CCS_IM, Proc_1_ACHI_code, Proc_1_ACHI_name, Proc_1_group_RCs, Proc_1_name_RCs, Manual_check, Note, Detail, External, DRG_name, DRG_code, ICD_name_Dx_1:ICD_name_Dx_30, ICD_code_Dx_1:ICD_code_Dx_30) # 765
 
 write_csv(ToBeChecked2,'data/ToBeChecked2.csv')
 
@@ -232,16 +295,18 @@ ToBeChecked2 %>% # 1629
 
 ```
 
-There are a total of  `r TBI_w %>% filter((Skull | IC_injury) & !External & !Selfharm & !Syncope & is.na(Note))  %>% summarize(N=n())` cases which required further manual examination. These are cases recorded as having a skull fracture or an intracranial injury, who have no external code, no indication of self-harm, assault, syncope, and which were not manually checked when cases with LOC were checked.
+There are a total of  `r TBI_w %>% filter((Skull | IC_injury) & !External & !Selfharm & !Syncope & is.na(Note))  %>% summarize(N=n()) # 765` cases which required further manual examination. These are cases recorded as having a skull fracture or an intracranial injury, who have no external code, no indication of self-harm, assault, syncope, and which were not manually checked when cases with LOC were checked.
 
 ```{r}
-ToBeCheckedRevised2 <- readxl::read_xlsx('data/ToBeCheckedRevised2.xlsx')
+ToBeCheckedRevised2 <- readxl::read_xlsx('data/ToBeCheckedRevised2.xlsx',
+                                         sheet = 'ToBeCheckedRevised2')
 Note2 <- ToBeCheckedRevised2 %>% select(ID,E_MRN, Manual_check, Note, Detail, External_detail) %>%
   mutate(Detail_lump = fct_lump_n(Detail,8))
 
+Note2 %>%
+  anti_join(TBI_w,  by = c("E_MRN"))
 TBI_w <- TBI_w %>%
   left_join(Note2,  by = c("ID", "E_MRN"))
-
 ```
 
 No cases occurred in both lists for manual checking. The two sets of notes, and cases details added manually need to be merged into one.
@@ -347,7 +412,7 @@ pander::pander(table(Note1$Detail_lump),caption='Main clinical details coded - C
 pander::pander(table(Note2$Detail_lump),caption='Main clinical details coded - Check 2 Skull fracture or intracranial injury recorded.')
 ```
 
-The first group (LOC and/or PTA) added few cases to the list of possible TBI's, but the second group (Skull fracture or Intra-cranial injury) added many more, as might be expected.  Cases included were those with codes consistent with injury, but with no other likely explanation for their fracture or intra-cranial injury recorded in the discharge codes. 
+The first group (LOC and/or PTA) added few cases to the list of possible TBI's, but the second group (Skull fracture or Intra-cranial injury) added many more, as might be expected.  Cases included were those with codes consistent with injury, but with no other likely explanation for their fracture or intra-cranial injury recorded in the discharge codes.
 
 ```{r, results = 'asis'}
 pander::pander(table(Note1$External_detail),caption='Main external codes recorded - Check 1. LOC')
@@ -356,7 +421,28 @@ pander::pander(table(Note2$External_detail),caption='Main external codes recorde
 
 Although there were more external codes recorded in the second set of records checked, than in the first, 'Unknown' was still very prevalent.
 
-Overall another `r TBI_w %>% filter(!is.na(Note)) %>% summarize(N=n())` records were manuallt reviewed. Of these `r TBI_w %>% filter(!is.na(Note) & Detail == 'TBI') %>% summarize(N=n())` were probably eligible to be recorded as TBI cases.
+```{r}
+TBI_w %>% filter(((Skull | IC_injury | PTA) & External)) %>% summarise(N=n()) # 26085
+TBI_w %>% filter(((Skull | IC_injury | PTA) & !External)) %>% summarise(N=n()) # 1896
+
+TBI_w %>% filter(Detail == 'TBI') %>% summarise(N=n()) # 321
+TBI_w %>% filter(((Skull | IC_injury | PTA) & External) | Detail == 'TBI') %>% summarise(N=n()) # 26406
+
+CIs <- round(100*Hmisc::binconf(321,26406),2)
+
+100-CIs
+
+#  26085 321
+#  
+#
+#
+
+TestTable <- as.table(matrix(c(26085,70438,321,1575),nrow=2,byrow=TRUE))
+epiR::epi.tests(TestTable)
+
+```
+
+Overall another `r TBI_w %>% filter(!is.na(Note)) %>% summarize(N=n()) # 1356` records were manually reviewed. Of these `r TBI_w %>% filter(!is.na(Note) & Detail == 'TBI') %>% summarize(N=n()) # 321` were probably potentially eligible to be recorded as TBI cases. It's important to emphasise that there was almost no information about intent, or mechanism recorded in these cases. This compares with `r TBI_w %>% filter(((Skull | IC_injury | PTA) & External)) %>% summarise(N=n()) # 26085` identified using the method of Possato et al. The percentage of cases added is at most `r CIs[1] #1.22` with a 95% confidence interval running from `r CIs[2]` to `r CIs[3]`. The specificity of the methods cannot be calculated, as there is no way to manually recheck the coding, however the sensitivity is `r 100 - CIs[1]`.
 
 
 # Produce the working file

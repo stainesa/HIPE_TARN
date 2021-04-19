@@ -170,7 +170,6 @@ PEA11 <- PEA11 %>%
 
 ```
 
-
 There are two slightly different questions to be considered. The first is to look at the use of resources for TBI. For this analysis only elective admissions need to be excluded from the number of events. The second is to look at occurrence of events, and this requires excluding elective care, as well as transfers and elective readmissions.
 
 ```{r}
@@ -180,6 +179,9 @@ TBI_usage <- TBI_final %>%
 
 table(TBI_usage$Detail)
 
+write_rds(TBI_usage, file = 'data/TBI_usage.Rds')
+
+
 # Eliminate transfers too
 TBI_occurrence <- TBI_final %>%
   filter(Admission_type == 'Emergency' | Admission_type == 'Emergency Readmission') %>%
@@ -187,14 +189,59 @@ TBI_occurrence <- TBI_final %>%
 
 table(TBI_occurrence$Detail)
 
+write_rds(TBI_occurrence, file = 'data/TBI_occurrence.Rds')
+
 ```
+
+```{r}
+TBI_final %>% filter(((Skull | IC_injury | PTA) & External)) %>% summarise(N=n()) # 26085
+TBI_final %>% filter(((Skull | IC_injury | PTA) & !External)) %>% summarise(N=n()) # 1896
+
+TBI_final %>% filter(Detail == 'TBI') %>% summarise(N=n()) # 321
+TBI_final %>% filter(((Skull | IC_injury | PTA) & External) | Detail == 'TBI') %>% summarise(N=n()) # 26406
+
+CIs_final <-round(100*Hmisc::binconf(321,26406),2)
+
+CIs_final = 100 - CIs_final
+```
+
+```{r}
+TBI_usage %>% filter(Detail == 'TBI') %>% summarise(N=n()) # 290
+TBI_usage %>% filter(((Skull | IC_injury | PTA) & External) | Detail == 'TBI') %>% summarise(N=n()) # 24987
+
+CIs_usage <- round(100*Hmisc::binconf(290,24987),2)
+
+CIs_usage = 100 - CIs_usage
+```
+
+```{r}
+TBI_occurrence %>% filter(Detail == 'TBI') %>% summarise(N=n()) # 214
+TBI_occurrence %>% filter(((Skull | IC_injury | PTA) & External) | Detail == 'TBI') %>% summarise(N=n()) # 22604
+
+CIs_occurrence <- round(100*Hmisc::binconf(214,22604),2)
+
+CIs_occurrence = 100 - CIs_occurrence
+
+CIS <- cbind(c('All cases','Resource usage','Occurrence'),
+             rbind(CIs_final,CIs_usage,CIs_occurrence))
+str(CIS)
+dimnames(CIS)[[2]][1] = 'Group'
+```
+
+For the whole set of TBI cases, as well as for the two subsets considered, the Possato et al. method seems to have excellent sensitivity.
+
+```{r, results ='asis'}
+pander::pander(CIS, caption='Estimated sensitivity and 95% confidence intervals.')
+```
+
 
 
 # Figure 1
 Stacked bar chart by age and cause
+This graphic shows the ways in which major change happnes by age and gender in the pattern of causes of TBI.
 
 ```{r}
-ggplot(data = TBI_occurrence %>% filter(!is.na(E_group)),
+ggCauses <- ggplot(data = TBI_occurrence %>% filter(!is.na(E_group)),
        aes(x = Age_group,
            group = E_group.f,
            fill = E_group.f,
@@ -209,14 +256,18 @@ ggplot(data = TBI_occurrence %>% filter(!is.na(E_group)),
   scale_x_discrete() +
   theme(axis.text.x = element_text(angle = -90))
 
+ggCauses
+
+ggsave(plot=ggCauses, filename='images/Fig1_Causes_by_Age_Sex.png', width=8, height=4, dpi=1200)
 ```
 
 # Figure 2
 Rates by age and sex
 
 ```{r}
+Years = 7 + 8/12 # 2013 to 2019 and first 8 months of 2020.
 TT <- TBI_occurrence %>%
-  group_by(Admission_year, Gender,Age_group) %>%
+  group_by(Gender,Age_group) %>%
   summarise(N = n()) %>%
   ungroup() %>%
   left_join(PEA11, by=c('Age_group' = 'Age_group','Gender' = 'Sex')) 
@@ -227,15 +278,70 @@ TT <- TT %>%
   mutate(UprCI = 100000 * pois.daly(TT$N,TT$Pop_2016)$upper) 
 
 
-ggplot(TT,aes(x=Age_group, y=Rate, group=Gender, colour=Gender)) +
+ggFig2 <- ggplot(TT,aes(x=Age_group, y=Rate, group=Gender, colour=Gender)) +
   geom_ribbon(aes(y=Rate, ymin=LrCI, ymax=UprCI),colour='lightgrey', fill='lightgrey', alpha = 0.8) +
   geom_line() +
-  ggtitle('Rate of TBI by gender', subtitle = 'Approximate 95% confidence intervals') +
-  xlab('Age group') + ylab('Rate per 100,000 per year') +
+  labs(title = 'Rate of TBI by gender',
+       subtitle = 'Approximate 95% confidence intervals',
+       x = 'Age group',
+       y = 'Rate per 100,000 per year',
+       caption='Reported rates of TBI by age and sex - source HIPE data') +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = -90))
+
+ggFig2
+
+ggsave(plot=ggFig2, filename='images/Fig2_Age_Sex_Rate.png', width=8, height=4, dpi=1200)
+
+```
+
+As expected the overall rate of TBI is higher in men than women, and rises with age. There is a distinct excess in young men from 15 to 24.
+
+## Rates by age and sex and year
+
+```{r}
+TTa <- TBI_occurrence %>%
+  group_by(Admission_year, Gender,Age_group) %>%
+  summarise(N = n()) %>%
+  ungroup() %>%
+  left_join(PEA11, by=c('Age_group' = 'Age_group','Gender' = 'Sex')) 
+
+TTa <- TTa %>%
+  mutate(Rate = 100000 * N/Pop_2016) %>%
+  mutate(LrCI = 100000 * pois.daly(TTa$N,TTa$Pop_2016)$lower) %>%
+  mutate(UprCI = 100000 * pois.daly(TTa$N,TTa$Pop_2016)$upper) 
+
+
+ggFig2a <- ggplot(TTa,aes(x=Age_group, y=Rate, group=Gender, colour=Gender)) +
+  geom_ribbon(aes(y=Rate, ymin=LrCI, ymax=UprCI),colour='lightgrey', fill='lightgrey', alpha = 0.8) +
+  geom_line() +
+  labs(title = 'Rate of TBI by gender',
+       subtitle = 'Approximate 95% confidence intervals',
+       x = 'Age group',
+       y = 'Rate per 100,000 per year',
+       caption='Changes in reported rates of TBI by age and sex from 2013 to 2020 - source HIPE data') +
+  coord_cartesian(ylim = c(0,1250)) +
+  theme_minimal() +
   theme(axis.text.x = element_text(angle = -90)) +
   facet_wrap(~Admission_year)
 
+ggFig2a
+
+ggsave(plot=ggFig2a, filename='images/Fig2a_Age_Sex_Rate_by_Year.png', width=8, height=4, dpi=1200)
+
 ```
+
+This shows a similar pattern for each year, but the reported incidence rises steadily over time in the older age groups.
+
+```{r}
+
+TTb <- TTa %>% inner_join(TT,  by = c("Gender", "Age_group")) %>%
+  mutate(RR = (N.x/Pop_2016.x)/(N.y/Pop_2016.y))
+
+```
+
+On further analysis
+
 
 # Preparatory tables
 
@@ -294,7 +400,6 @@ ggplot(Daily_Admissions, aes(x=Day_of_week)) +
   geom_bar(aes(fill=Day_of_week)) +
   scale_fill_viridis_d() +
   theme_minimal()
-
 
 rm(Daily_Admissions)
 ```
